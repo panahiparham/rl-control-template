@@ -6,6 +6,8 @@ from experiment.ExperimentModel import ExperimentModel
 from algorithms.BaseAgent import BaseAgent
 from algorithms.registry import getAgent
 
+from utils.policies import Policy
+
 
 class BaseProblem:
     def __init__(self, exp: ExperimentModel, idx: int, collector: Collector):
@@ -22,6 +24,8 @@ class BaseProblem:
         self.agent: Optional[BaseAgent] = None
         self.env: Optional[BaseEnvironment] = None
         self.gamma: Optional[float] = None
+        self.behavior: Optional[Policy] = None
+        self.target: Optional[Policy] = None
 
         self.seed = exp.getRun(idx)
 
