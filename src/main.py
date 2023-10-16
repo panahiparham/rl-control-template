@@ -107,13 +107,14 @@ for idx in indices:
         collector.next_frame()
         chk.maybe_save()
         interaction = glue.step()
+        # collect some data
+        collector.evaluate('msve', lambda: problem.evaluate())
 
         if interaction.t or (exp.episode_cutoff > -1 and glue.num_steps >= exp.episode_cutoff):
             # allow agent to cleanup traces or other stateful episodic info
             agent.cleanup()
 
             # collect some data
-            collector.evaluate('msve', lambda: problem.evaluate())
             collector.collect('return', glue.total_reward)
             collector.collect('episode', chk['episode'])
             collector.collect('steps', glue.num_steps)
@@ -124,10 +125,9 @@ for idx in indices:
             # compute the average time-per-step in ms
             avg_time = 1000 * (time.time() - start_time) / (step + 1)
             fps = step / (time.time() - start_time)
-            msve = problem.evaluate()
 
             episode = chk['episode']
-            logger.debug(f'{episode} {step} {glue.total_reward} {avg_time:.4}ms {int(fps)} {msve:.4}')
+            logger.debug(f'{episode} {step} {glue.total_reward} {avg_time:.4}ms {int(fps)}')
 
             glue.start()
 
