@@ -70,6 +70,7 @@ for idx in indices:
         #  - Window(n)  take a window average of size n
         #  - Subsample(n) save one of every n elements
         config={
+            'msve': Subsample(100),
             'return': Identity(),
             'episode': Identity(),
             'steps': Identity(),
@@ -112,6 +113,7 @@ for idx in indices:
             agent.cleanup()
 
             # collect some data
+            collector.evaluate('msve', lambda: problem.evaluate())
             collector.collect('return', glue.total_reward)
             collector.collect('episode', chk['episode'])
             collector.collect('steps', glue.num_steps)
@@ -122,9 +124,10 @@ for idx in indices:
             # compute the average time-per-step in ms
             avg_time = 1000 * (time.time() - start_time) / (step + 1)
             fps = step / (time.time() - start_time)
+            msve = problem.evaluate()
 
             episode = chk['episode']
-            logger.debug(f'{episode} {step} {glue.total_reward} {avg_time:.4}ms {int(fps)}')
+            logger.debug(f'{episode} {step} {glue.total_reward} {avg_time:.4}ms {int(fps)} {msve:.4}')
 
             glue.start()
 

@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from typing import Optional
 from PyExpUtils.collection.Collector import Collector
 from RlGlue.environment import BaseEnvironment
@@ -56,5 +57,6 @@ class BaseProblem:
         self.agent = Agent(self.observations, self.params, self.collector, self.seed)
         return self.agent
     
-    def evaluate(self):
-        raise NotImplementedError('Problem.evaluate not implemented')
+    @abstractmethod
+    def evaluate(self) -> float:
+        ...

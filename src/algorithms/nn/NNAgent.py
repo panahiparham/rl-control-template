@@ -91,7 +91,7 @@ class NNAgent(BaseAgent):
         ...
 
     def policy(self, obs: np.ndarray) -> np.ndarray:
-        return self.behavior_probs
+        return self.behavior_probs(obs)
 
     # --------------------------
     # -- Base agent interface --
