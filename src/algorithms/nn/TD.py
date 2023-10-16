@@ -18,7 +18,6 @@ import utils.chex as cxu
 @cxu.dataclass
 class AgentState:
     params: Any
-    target_params: Any
     optim: optax.OptState
 
 
@@ -37,7 +36,6 @@ class TD(NNAgent):
 
         self.state = AgentState(
             params=self.state.params,
-            target_params=self.state.params,
             optim=self.state.optim,
         )
 
@@ -85,25 +83,24 @@ class TD(NNAgent):
     @partial(jax.jit, static_argnums=0)
     def _computeUpdate(self, state: AgentState, batch: Batch, weights: jax.Array):
         grad_fn = jax.grad(self._loss, has_aux=True)
-        grad, metrics = grad_fn(state.params, state.target_params, batch, weights)
+        grad, metrics = grad_fn(state.params, batch, weights)
 
         updates, optim = self.optimizer.update(grad, state.optim, state.params)
         params = optax.apply_updates(state.params, updates)
 
         new_state = AgentState(
             params=params,
-            target_params=state.target_params,
             optim=optim,
         )
 
         return new_state, metrics
 
-    def _loss(self, params: hk.Params, target: hk.Params, batch: Batch, weights: jax.Array):
+    def _loss(self, params: hk.Params, batch: Batch, weights: jax.Array):
         phi = self.phi(params, batch.x).out
-        phi_p = self.phi(target, batch.xp).out
+        phi_p = self.phi(params, batch.xp).out
 
-        v = self.v(params, phi)
-        vp = self.v(target, phi_p)
+        v = jnp.squeeze(self.v(params, phi))
+        vp = jnp.squeeze(self.v(params, phi_p))
 
         batch_loss = jax.vmap(v_loss, in_axes=0)
         losses, metrics = batch_loss(v, batch.r, batch.gamma, vp)
