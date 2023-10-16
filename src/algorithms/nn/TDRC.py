@@ -5,7 +5,6 @@ from ReplayTables.interface import Batch
 
 from algorithms.nn.NNAgent import NNAgent, AgentState
 from representations.networks import NetworkBuilder
-from utils.jax import vmap_except, argmax_with_random_tie_breaking
 
 import jax
 import optax
@@ -16,9 +15,9 @@ import utils.hk as hku
 tree_leaves = jax.tree_util.tree_leaves
 tree_map = jax.tree_util.tree_map
 
-class EQRC(NNAgent):
-    def __init__(self, observations: Tuple, actions: int, params: Dict, collector: Collector, seed: int):
-        super().__init__(observations, actions, params, collector, seed)
+class TDRC(NNAgent):
+    def __init__(self, observations: Tuple, params: Dict, collector: Collector, seed: int):
+        super().__init__(observations, params, collector, seed)
         self.beta = params.get('beta', 1.)
         self.stepsize = self.optimizer_params['alpha']
 
@@ -27,15 +26,15 @@ class EQRC(NNAgent):
     # ------------------------
     def _build_heads(self, builder: NetworkBuilder) -> None:
         zero_init = hk.initializers.Constant(0)
-        self.q = builder.addHead(lambda: hku.DuelingHeads(self.actions, name='q', w_init=zero_init, b_init=zero_init))
-        self.h = builder.addHead(lambda: hku.DuelingHeads(self.actions, name='h', w_init=zero_init, b_init=zero_init), grad=False)
+        self.v = builder.addHead(lambda: hku.DuelingHeads(1, name='v', w_init=zero_init, b_init=zero_init))
+        self.h = builder.addHead(lambda: hku.DuelingHeads(1, name='h', w_init=zero_init, b_init=zero_init), grad=False)
 
     # jit'ed internal value function approximator
     # considerable speedup, especially for larger networks (note: haiku networks are not jit'ed by default)
     @partial(jax.jit, static_argnums=0)
     def _values(self, state: AgentState, x: jax.Array):
         phi = self.phi(state.params, x).out
-        return self.q(state.params, phi)
+        return self.v(state.params, phi)
 
     def update(self):
         self.steps += 1
@@ -90,19 +89,19 @@ class EQRC(NNAgent):
 
         return new_state, metrics
 
-    # compute the total QRC loss for both sets of parameters (value parameters and h parameters)
+    # compute the total TDRC loss for both sets of parameters (value parameters and h parameters)
     def _loss(self, params, batch: Batch):
         phi = self.phi(params, batch.x).out
-        q = self.q(params, phi)
+        v = self.v(params, phi)
         h = self.h(params, phi)
 
         phi_p = self.phi(params, batch.xp).out
-        qp = self.q(params, phi_p)
+        vp = self.v(params, phi_p)
 
-        # apply qc loss function to each sample in the minibatch
+        # apply tdc loss function to each sample in the minibatch
         # gives back value of the loss individually for parameters of v and h
-        # note QC instead of QRC (i.e. no regularization)
-        v_loss, h_loss, metrics = qc_loss(q, batch.a, batch.r, batch.gamma, qp, h, self.epsilon)
+        # note TDC instead of TDRC (i.e. no regularization)
+        v_loss, h_loss, metrics = tdc_loss(v, batch.r, batch.gamma, vp, h)
 
         h_loss = h_loss.mean()
         v_loss = v_loss.mean()
@@ -118,19 +117,12 @@ class EQRC(NNAgent):
 # -- Utilities --
 # ---------------
 
-@partial(vmap_except, exclude=['epsilon'])
-def qc_loss(q, a, r, gamma, qtp1, h, epsilon):
-    pi = argmax_with_random_tie_breaking(qtp1)
-
-    pi = (1.0 - epsilon) * pi + (epsilon / qtp1.shape[0])
-    pi = jax.lax.stop_gradient(pi)
-
-    vtp1 = qtp1.dot(pi)
+def tdc_loss(v, r, gamma, vtp1, h):
     target = r + gamma * vtp1
     target = jax.lax.stop_gradient(target)
 
-    delta = target - q[a]
-    delta_hat = h[a]
+    delta = target - v
+    delta_hat = h
 
     v_loss = 0.5 * delta**2 + gamma * jax.lax.stop_gradient(delta_hat) * vtp1
     h_loss = 0.5 * (jax.lax.stop_gradient(delta) - delta_hat)**2

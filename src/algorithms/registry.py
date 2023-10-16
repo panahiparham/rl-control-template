@@ -1,23 +1,15 @@
 from typing import Type
 from algorithms.BaseAgent import BaseAgent
 
-from algorithms.nn.DQN import DQN
-from algorithms.nn.EQRC import EQRC
+from algorithms.nn.TD import TD
+from algorithms.nn.TDRC import TDRC
 
-from algorithms.tc.ESARSA import ESARSA
-from algorithms.tc.SoftmaxAC import SoftmaxAC
 
 def getAgent(name) -> Type[BaseAgent]:
-    if name == 'DQN':
-        return DQN
-
-    if name == 'EQRC':
-        return EQRC
-
-    if name == 'ESARSA':
-        return ESARSA
-
-    if name == 'SoftmaxAC':
-        return SoftmaxAC
+    if name == 'TD':
+        return TD
+    
+    if name == 'TDRC':
+        return TDRC
 
     raise Exception('Unknown algorithm')

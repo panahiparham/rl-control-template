@@ -12,7 +12,7 @@ from ..buffers.registry import getBufferBuilder
 from algorithms.BaseAgent import BaseAgent
 from representations.networks import NetworkBuilder
 from utils.checkpoint import checkpointable
-from utils.policies import egreedy_probabilities, sample
+from utils.policies import sample
 
 @cxu.dataclass
 class AgentState:
@@ -22,8 +22,8 @@ class AgentState:
 
 @checkpointable(('buffer', 'steps', 'state', 'updates'))
 class NNAgent(BaseAgent):
-    def __init__(self, observations: Tuple[int, ...], actions: int, params: Dict, collector: Collector, seed: int):
-        super().__init__(observations, actions, params, collector, seed)
+    def __init__(self, observations: Tuple[int, ...], params: Dict, collector: Collector, seed: int):
+        super().__init__(observations, params, collector, seed)
 
         # ------------------------------
         # -- Configuration Parameters --
@@ -91,9 +91,7 @@ class NNAgent(BaseAgent):
         ...
 
     def policy(self, obs: np.ndarray) -> np.ndarray:
-        q = self.values(obs)
-        pi = egreedy_probabilities(q, self.actions, self.epsilon)
-        return pi
+        return self.behavior_probs
 
     # --------------------------
     # -- Base agent interface --
@@ -106,12 +104,12 @@ class NNAgent(BaseAgent):
         # if x is a tensor, jax does not handle lack of "batch" dim gracefully
         if len(x.shape) > 1:
             x = np.expand_dims(x, 0)
-            q = self._values(self.state, x)[0]
+            v = self._values(self.state, x)[0]
 
         else:
-            q = self._values(self.state, x)
+            v = self._values(self.state, x)
 
-        return jax.device_get(q)
+        return jax.device_get(v)
 
     # ----------------------
     # -- RLGlue interface --

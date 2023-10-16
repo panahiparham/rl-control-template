@@ -22,21 +22,18 @@ class AgentState:
     optim: optax.OptState
 
 
-def q_loss(q, a, r, gamma, qp):
-    vp = qp.max()
+def v_loss(v, r, gamma, vp):
     target = r + gamma * vp
     target = jax.lax.stop_gradient(target)
-    delta = target - q[a]
+    delta = target - v
 
-    return huber_loss(1.0, q[a], target), {
+    return huber_loss(1.0, v, target), {
         'delta': delta,
     }
 
-class DQN(NNAgent):
-    def __init__(self, observations: Tuple, actions: int, params: Dict, collector: Collector, seed: int):
-        super().__init__(observations, actions, params, collector, seed)
-        # set up the target network parameters
-        self.target_refresh = params['target_refresh']
+class TD(NNAgent):
+    def __init__(self, observations: Tuple, params: Dict, collector: Collector, seed: int):
+        super().__init__(observations, params, collector, seed)
 
         self.state = AgentState(
             params=self.state.params,
@@ -48,13 +45,13 @@ class DQN(NNAgent):
     # -- NN agent interface --
     # ------------------------
     def _build_heads(self, builder: NetworkBuilder) -> None:
-        self.q = builder.addHead(lambda: hk.Linear(self.actions, name='q'))
+        self.v = builder.addHead(lambda: hk.Linear(1, name='v'))
 
     # internal compiled version of the value function
     @partial(jax.jit, static_argnums=0)
     def _values(self, state: AgentState, x: jax.Array):
         phi = self.phi(state.params, x).out
-        return self.q(state.params, phi)
+        return self.v(state.params, phi)
 
     def update(self):
         self.steps += 1
@@ -82,9 +79,6 @@ class DQN(NNAgent):
         for k, v in metrics.items():
             self.collector.collect(k, np.mean(v).item())
 
-        if self.updates % self.target_refresh == 0:
-            self.state.target_params = self.state.params
-
     # -------------
     # -- Updates --
     # -------------
@@ -108,11 +102,11 @@ class DQN(NNAgent):
         phi = self.phi(params, batch.x).out
         phi_p = self.phi(target, batch.xp).out
 
-        qs = self.q(params, phi)
-        qsp = self.q(target, phi_p)
+        v = self.v(params, phi)
+        vp = self.v(target, phi_p)
 
-        batch_loss = jax.vmap(q_loss, in_axes=0)
-        losses, metrics = batch_loss(qs, batch.a, batch.r, batch.gamma, qsp)
+        batch_loss = jax.vmap(v_loss, in_axes=0)
+        losses, metrics = batch_loss(v, batch.r, batch.gamma, vp)
 
         chex.assert_equal_shape((weights, losses))
         loss = jnp.mean(weights * losses)
