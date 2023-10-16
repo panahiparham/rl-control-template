@@ -7,6 +7,7 @@ from algorithms.BaseAgent import BaseAgent
 from algorithms.registry import getAgent
 
 from utils.policies import Policy
+from PyFixedReps.BaseRepresentation import BaseRepresentation
 
 
 class BaseProblem:
@@ -24,13 +25,14 @@ class BaseProblem:
         self.agent: Optional[BaseAgent] = None
         self.env: Optional[BaseEnvironment] = None
         self.gamma: Optional[float] = None
+
         self.behavior: Optional[Policy] = None
         self.target: Optional[Policy] = None
+        self.rep: Optional[BaseRepresentation] = None
 
         self.seed = exp.getRun(idx)
 
         self.observations = (0,)
-        self.actions = 0
 
     def getEnvironment(self):
         if self.env is None:
@@ -45,6 +47,14 @@ class BaseProblem:
         if self.gamma is not None:
             self.params['gamma'] = self.gamma
 
+        # set behavior and representation
+        self.params['behavior_probs'] = self.behavior_probs
+        self.params['target_probs'] = self.target_probs
+
+
         Agent = getAgent(self.exp.agent)
-        self.agent = Agent(self.observations, self.actions, self.params, self.collector, self.seed)
+        self.agent = Agent(self.observations, self.params, self.collector, self.seed)
         return self.agent
+    
+    def evaluate(self):
+        raise NotImplementedError('Problem.evaluate not implemented')
