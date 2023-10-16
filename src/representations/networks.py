@@ -119,6 +119,9 @@ def buildFeatureNetwork(inputs: Tuple, params: Dict[str, Any], rng: Any):
                 jax.nn.relu,
             ]
 
+        elif name == 'EmptyNet':
+            layers = []
+
         else:
             raise NotImplementedError()
 
