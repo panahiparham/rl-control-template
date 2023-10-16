@@ -5,7 +5,7 @@ from ReplayTables.ReplayBuffer import Batch
 
 from algorithms.nn.NNAgent import NNAgent
 from representations.networks import NetworkBuilder
-from utils.jax import huber_loss
+from utils.jax import mse_loss
 
 import jax
 import chex
@@ -24,9 +24,8 @@ class AgentState:
 def v_loss(v, r, gamma, vp):
     target = r + gamma * vp
     target = jax.lax.stop_gradient(target)
-    delta = target - v
-
-    return huber_loss(1.0, v, target), {
+    delta =  - v
+    return mse_loss(v, target), {
         'delta': delta,
     }
 
