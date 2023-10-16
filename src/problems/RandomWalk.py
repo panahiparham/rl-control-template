@@ -30,8 +30,8 @@ ShortRandChain = partial(RandomWalk, states=11, behavior=0.5, target=0.5, noise=
 LongBiasedChain = partial(RandomWalk, states=101, behavior=0.75, target=0.25, noise=0.0)
 ShortBiasedChain = partial(RandomWalk, states=11, behavior=0.75, target=0.25, noise=0.0)
 
-NoisyLongRandChain = partial(RandomWalk, states=101, behavior=0.5, target=0.5, noise=0.1)
-NoisyShortRandChain = partial(RandomWalk, states=11, behavior=0.5, target=0.5, noise=0.1)
-NoisyLongBiasedChain = partial(RandomWalk, states=101, behavior=0.75, target=0.25, noise=0.1)
-NoisyShortBiasedChain = partial(RandomWalk, states=11, behavior=0.75, target=0.25, noise=0.1)
+NoisyLongRandChain = partial(RandomWalk, states=101, behavior=0.5, target=0.5, noise=0.2)
+NoisyShortRandChain = partial(RandomWalk, states=11, behavior=0.5, target=0.5, noise=0.2)
+NoisyLongBiasedChain = partial(RandomWalk, states=101, behavior=0.75, target=0.25, noise=0.2)
+NoisyShortBiasedChain = partial(RandomWalk, states=11, behavior=0.75, target=0.25, noise=0.2)
 

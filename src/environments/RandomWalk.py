@@ -1,9 +1,10 @@
 import numpy as np
 
-from PyRlEnvs.domains.RandomWalk import buildRandomWalk, invertedFeatures, tabularFeatures, dependentFeatures
+from PyRlEnvs.domains.RandomWalk import buildRandomWalk
 from RlGlue.environment import BaseEnvironment
 from PyFixedReps.BaseRepresentation import BaseRepresentation
 
+from PyRlEnvs.utils.math import try2jit
 
 
 class RandomWalk(BaseEnvironment):
@@ -44,38 +45,63 @@ def buildRepresentation(states, features, noise_ratio):
 
     assert m is not None
 
-    if noise_ratio > 0:
-        return NoisyMappedRepresentation(m, noise_ratio)
-    else:
-        return MappedRepresentation(m)
+    return MappedRepresentation(m, noise_ratio)
     
 
 class MappedRepresentation(BaseRepresentation):
-    def __init__(self, m: np.ndarray):
+    def __init__(self, m: np.ndarray, noise_ratio: float = 0.0):
         self.map = addDummyTerminalState(m)
+        self.noise_size = np.floor(noise_ratio * self.map.shape[1]).astype(int)
+
+        if self.noise_size > 0:
+            # TODO: fix noise to state
+            ...
 
     def encode(self, s: int):
-        return self.map[s]
-
-    def features(self):
-        return self.map.shape[1]
-    
-
-class NoisyMappedRepresentation(MappedRepresentation):
-    def __init__(self, m: np.ndarray, noise_ratio: float):
-        super().__init__(m)
-        self.noise_ratio = noise_ratio
-        self.noise_size = np.floor(self.noise_ratio * super().features()).astype(int) + 1
-
-    def encode(self, s: int):
-        encoded = super().encode(s)
+        feats = self.map[s]
         noise = np.random.randint(2, size=(self.noise_size,))
-        return np.concatenate([encoded, noise], axis=0)
+        m = np.concatenate([feats, noise], axis=0)
+        return _normRows(m)
 
     def features(self):
-        return super().features() + self.noise_size
+        return self.map.shape[1] + self.noise_size
 
 
 def addDummyTerminalState(m: np.ndarray):
     t = np.zeros((1, m.shape[1]))
     return np.concatenate([m, t], axis=0)
+
+
+def tabularFeatures(n: int):
+    feats = np.eye(n)
+    return np.eye(n)
+
+
+def invertedFeatures(n: int):
+    # additive inverse of tabular (hence name)
+    return 1 - tabularFeatures(n)
+
+
+@try2jit
+def dependentFeatures(n: int):
+    nfeats = int(np.floor(n / 2) + 1)
+    m = np.zeros((n, nfeats))
+
+    idx = 0
+    for i in range(nfeats):
+        m[idx, 0: i + 1] = 1
+        idx += 1
+
+    for i in range(nfeats - 1, 0, -1):
+        m[idx, -i:] = 1
+        idx += 1
+
+    return m
+
+
+# some utility functions to encode other important parts of the problem spec
+# not necessarily environment specific, but this is as good a place as any to store them
+@try2jit
+def _normRows(m: np.ndarray):
+    sums = m.sum(axis=0)
+    return m / sums
