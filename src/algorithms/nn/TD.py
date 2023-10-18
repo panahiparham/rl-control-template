@@ -98,8 +98,15 @@ class TD(NNAgent):
         phi = self.phi(params, batch.x).out
         phi_p = self.phi(params, batch.xp).out
 
-        v = jnp.squeeze(self.v(params, phi))
-        vp = jnp.squeeze(self.v(params, phi_p))
+        batch_size = batch.x.shape[0]
+        
+        v = self.v(params, phi)
+        chex.assert_shape(v, (batch_size, 1))
+        v = v[:, 0]
+
+        vp = self.v(params, phi_p)
+        chex.assert_shape(vp, (batch_size, 1))
+        vp = vp[:, 0]
 
         batch_loss = jax.vmap(v_loss, in_axes=0)
         losses, metrics = batch_loss(v, batch.r, batch.gamma, vp)
