@@ -45,7 +45,7 @@ class TDRC(NNAgent):
             return
 
         # skip updates if the buffer isn't full yet
-        if self.buffer.size() <= self.batch_size:
+        if self.buffer.size() < self.batch_size:
             return
 
         batch = self.buffer.sample(self.batch_size)
