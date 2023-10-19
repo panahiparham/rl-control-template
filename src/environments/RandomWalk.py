@@ -8,10 +8,11 @@ from PyRlEnvs.utils.math import try2jit
 
 
 class RandomWalk(BaseEnvironment):
-    def __init__(self, states: int, features: str, noise_ratio: float):
+    def __init__(self, states: int, features: str, noise_ratio: float, seed: int):
         self.states = states
         self.features = features
         self.noise_ratio = noise_ratio
+        self.rng = np.random.default_rng(seed)
 
         self.env = buildRandomWalk(self.states)()
         self.rep = buildRepresentation(self.states, self.features, self.noise_ratio)
@@ -21,6 +22,7 @@ class RandomWalk(BaseEnvironment):
 
     def start(self):
         s = self.env.start()
+        self.rep.update_noise(self.rng)
         phi = self.rep.encode(s).astype('float32')
         return phi
 
@@ -45,26 +47,32 @@ def buildRepresentation(states, features, noise_ratio):
 
     assert m is not None
 
-    return MappedRepresentation(m, noise_ratio)
+    return MappedRepresentation(m, states, noise_ratio)
     
 
 class MappedRepresentation(BaseRepresentation):
-    def __init__(self, m: np.ndarray, noise_ratio: float = 0.0):
+    def __init__(self, m: np.ndarray, states: int, noise_ratio: float = 0.0):
         self.map = addDummyTerminalState(m)
         self.noise_size = np.floor(noise_ratio * self.map.shape[1]).astype(int)
 
         if self.noise_size > 0:
-            # TODO: fix noise to state
-            ...
+            self.noise_bits = np.zeros((states, self.noise_size)).astype(int)
+
 
     def encode(self, s: int):
         feats = self.map[s]
-        noise = np.random.randint(2, size=(self.noise_size,))
-        m = np.concatenate([feats, noise], axis=0)
+        if self.noise_size > 0:
+            m = np.concatenate([feats, self.noise_bits[s, :]], axis=0)
+        else:
+            m = feats
         return _normRows(m)
 
     def features(self):
         return self.map.shape[1] + self.noise_size
+    
+    def update_noise(self, rng):
+        if self.noise_size > 0:
+            self.noise_bits = rng.integers(0, 2, size=self.noise_bits.shape)
 
 
 def addDummyTerminalState(m: np.ndarray):
@@ -73,7 +81,6 @@ def addDummyTerminalState(m: np.ndarray):
 
 
 def tabularFeatures(n: int):
-    feats = np.eye(n)
     return np.eye(n)
 
 

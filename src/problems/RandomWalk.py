@@ -19,7 +19,7 @@ class RandomWalk(BaseProblem):
         self.behavior_probs = lambda s: np.array([behavior, 1 - behavior])
         self.target_probs = lambda s: np.array([target, 1 - target])
 
-        self.env = Env(self.states, self.features, self.noise_ratio)
+        self.env = Env(self.states, self.features, self.noise_ratio, self.seed)
         self.observations = self.env.observations
 
         self.gamma = 0.99
@@ -47,8 +47,8 @@ ShortRandChain = partial(RandomWalk, states=11, behavior=0.5, target=0.5, noise=
 LongBiasedChain = partial(RandomWalk, states=101, behavior=0.75, target=0.75, noise=0.0)
 ShortBiasedChain = partial(RandomWalk, states=11, behavior=0.75, target=0.75, noise=0.0)
 
-NoisyLongRandChain = partial(RandomWalk, states=101, behavior=0.5, target=0.5, noise=0.2)
-NoisyShortRandChain = partial(RandomWalk, states=11, behavior=0.5, target=0.5, noise=0.2)
-NoisyLongBiasedChain = partial(RandomWalk, states=101, behavior=0.75, target=0.75, noise=0.2)
-NoisyShortBiasedChain = partial(RandomWalk, states=11, behavior=0.75, target=0.75, noise=0.2)
+NoisyLongRandChain = partial(RandomWalk, states=101, behavior=0.5, target=0.5, noise=1.0)
+NoisyShortRandChain = partial(RandomWalk, states=11, behavior=0.5, target=0.5, noise=1.0)
+NoisyLongBiasedChain = partial(RandomWalk, states=101, behavior=0.75, target=0.75, noise=1.0)
+NoisyShortBiasedChain = partial(RandomWalk, states=11, behavior=0.75, target=0.75, noise=1.0)
 
