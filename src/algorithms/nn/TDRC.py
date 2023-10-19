@@ -7,10 +7,11 @@ from algorithms.nn.NNAgent import NNAgent, AgentState
 from representations.networks import NetworkBuilder
 
 import jax
+import jax.numpy as jnp
+import chex
 import optax
 import numpy as np
 import haiku as hk
-import utils.hk as hku
 
 tree_leaves = jax.tree_util.tree_leaves
 tree_map = jax.tree_util.tree_map
@@ -26,8 +27,8 @@ class TDRC(NNAgent):
     # ------------------------
     def _build_heads(self, builder: NetworkBuilder) -> None:
         zero_init = hk.initializers.Constant(0)
-        self.v = builder.addHead(lambda: hku.DuelingHeads(1, name='v', w_init=zero_init, b_init=zero_init))
-        self.h = builder.addHead(lambda: hku.DuelingHeads(1, name='h', w_init=zero_init, b_init=zero_init), grad=False)
+        self.v = builder.addHead(lambda: hk.Linear(1, name='v', w_init=zero_init, b_init=zero_init))
+        self.h = builder.addHead(lambda: hk.Linear(1, name='h', w_init=zero_init, b_init=zero_init), grad=False)
 
     # jit'ed internal value function approximator
     # considerable speedup, especially for larger networks (note: haiku networks are not jit'ed by default)
@@ -71,15 +72,6 @@ class TDRC(NNAgent):
         grad, metrics = jax.grad(self._loss, has_aux=True)(params, batch)
 
         updates, new_optim = self.optimizer.update(grad, state.optim, params)
-        assert isinstance(updates, dict)
-
-        decay = tree_map(
-            lambda h, dh: dh - self.stepsize * self.beta * h,
-            params['h'],
-            updates['h'],
-        )
-
-        updates |= {'h': decay}
         new_params = optax.apply_updates(params, updates)
 
         new_state = AgentState(
@@ -91,17 +83,23 @@ class TDRC(NNAgent):
 
     # compute the total TDRC loss for both sets of parameters (value parameters and h parameters)
     def _loss(self, params, batch: Batch):
+        batch_size = batch.x.shape[0]
+
         phi = self.phi(params, batch.x).out
         v = self.v(params, phi)
+        chex.assert_shape(v, (batch_size, 1))
+        v = v[:, 0]
         h = self.h(params, phi)
+        chex.assert_shape(h, (batch_size, 1))
+        h = h[:, 0]
 
         phi_p = self.phi(params, batch.xp).out
         vp = self.v(params, phi_p)
+        chex.assert_shape(vp, (batch_size, 1))
+        vp = vp[:, 0]
 
-        # apply tdc loss function to each sample in the minibatch
-        # gives back value of the loss individually for parameters of v and h
-        # note TDC instead of TDRC (i.e. no regularization)
         v_loss, h_loss, metrics = tdc_loss(v, batch.r, batch.gamma, vp, h)
+        regularizer = sum(jnp.sum(jnp.square(p)) for p in jax.tree_leaves(params['h']))
 
         h_loss = h_loss.mean()
         v_loss = v_loss.mean()
@@ -111,7 +109,7 @@ class TDRC(NNAgent):
             'h_loss': h_loss,
         }
 
-        return v_loss + h_loss, metrics
+        return v_loss + h_loss + regularizer, metrics
 
 # ---------------
 # -- Utilities --
