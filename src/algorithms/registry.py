@@ -10,7 +10,6 @@ def getAgent(name) -> Type[BaseAgent]:
         return TD
     
     if name == 'TDRC':
-        raise Exception('TDRC has a bug!')
         return TDRC
 
     raise Exception('Unknown algorithm')
