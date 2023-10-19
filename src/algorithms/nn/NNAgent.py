@@ -31,7 +31,6 @@ class NNAgent(BaseAgent):
         self.rep_params: Dict = params['representation']
         self.optimizer_params: Dict = params['optimizer']
 
-        self.epsilon = params['epsilon']
         self.reward_clip = params.get('reward_clip', 0)
 
         # ---------------------
