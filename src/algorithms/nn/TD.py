@@ -24,7 +24,7 @@ class AgentState:
 def v_loss(v, r, gamma, vp):
     target = r + gamma * vp
     target = jax.lax.stop_gradient(target)
-    delta =  - v
+    delta = target - v
     return mse_loss(v, target), {
         'delta': delta,
     }
