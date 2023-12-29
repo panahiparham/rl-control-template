@@ -70,14 +70,8 @@ for idx in indices:
         #  - Window(n)  take a window average of size n
         #  - Subsample(n) save one of every n elements
         config={
-            'msve': Subsample(100),
-            'return': Identity(),
-            'episode': Identity(),
+            'msve': Subsample(exp.total_steps // 1000),
             'steps': Identity(),
-            'delta': Pipe(
-                MovingAverage(0.99),
-                Subsample(100),
-            ),
         },
         # by default, ignore keys that are not explicitly listed above
         default=Ignore(),
@@ -127,7 +121,7 @@ for idx in indices:
             fps = step / (time.time() - start_time)
 
             episode = chk['episode']
-            logger.debug(f'{episode} {step} {glue.total_reward} {avg_time:.4}ms {int(fps)}')
+            # logger.debug(f'{episode} {step} {glue.total_reward} {avg_time:.4}ms {int(fps)}')
 
             glue.start()
 
@@ -138,3 +132,4 @@ for idx in indices:
     # ------------
     saveCollector(exp, collector, base=args.save_path)
     chk.delete()
+
