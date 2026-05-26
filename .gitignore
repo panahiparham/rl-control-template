@@ -24,3 +24,8 @@ test.json
 build
 build/
 **.egg-info/
+
+# ignore plots
+*.png
+*.pdf
+*.svg

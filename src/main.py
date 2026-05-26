@@ -6,19 +6,17 @@ import time
 import socket
 import logging
 import argparse
-import numpy as np
 import jax
-from rlglue import RlGlue
+import jax.numpy as jnp
+import gymnax
+import gymnax.wrappers
 from experiment import ExperimentModel
-from utils.checkpoint import Checkpoint
-from utils.preempt import TimeoutHandler
-from problems.registry import getProblem
 from PyExpUtils.results.tools import getParamsAsDict
 
 from ml_instrumentation.Collector import Collector
-from ml_instrumentation.Sampler import Identity, Ignore, MovingAverage, Subsample
-from ml_instrumentation.utils import Pipe
+from ml_instrumentation.Sampler import Identity, Ignore
 from ml_instrumentation.metadata import attach_metadata
+from rl_agents.registry import agent_registry
 
 # ------------------
 # -- Command Args --
@@ -27,7 +25,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-e', '--exp', type=str, required=True)
 parser.add_argument('-i', '--idxs', nargs='+', type=int, required=True)
 parser.add_argument('--save_path', type=str, default='./')
-parser.add_argument('--checkpoint_path', type=str, default='./checkpoints/')
 parser.add_argument('--silent', action='store_true', default=False)
 parser.add_argument('--gpu', action='store_true', default=False)
 
@@ -45,86 +42,74 @@ prod = 'cdr' in socket.gethostname() or args.silent
 if not prod:
     logger.setLevel(logging.DEBUG)
 
+def _buildEnvironment(environment_name, episode_cutoff):
+    env, env_params = gymnax.make(environment_name)
+    env_params = env_params.replace(max_steps_in_episode=episode_cutoff)
+    env = gymnax.wrappers.LogWrapper(env)
+    return env, env_params
+
+def _buildAgent(agent_name, params, total_steps):
+    config, make_train = agent_registry(agent_name, params | {'TOTAL_TIMESTEPS': total_steps})
+    return config, make_train
+
+def getTrainFunction(environment_name, agent_name, params, total_steps, episode_cutoff):
+    env, env_params = _buildEnvironment(environment_name, episode_cutoff)
+    config, make_train = _buildAgent(agent_name, params, total_steps)
+    return make_train(
+        config,
+        env,
+        env_params,
+    )
 
 # ----------------------
 # -- Experiment Def'n --
 # ----------------------
-timeout_handler = TimeoutHandler()
 
 exp = ExperimentModel.load(args.exp)
 indices = args.idxs
 
-Problem = getProblem(exp.problem)
 for idx in indices:
-    chk = Checkpoint(exp, idx, base_path=args.checkpoint_path)
-    chk.load_if_exists()
-    timeout_handler.before_cancel(chk.save)
+    run = exp.getRun(idx)
+    params = exp.get_hypers(idx)
+    rng = jax.random.key(idx)
 
-    collector = chk.build('collector', lambda: Collector(
-        # tmp_file='/mnt/i/tmp.db',
-        # specify which keys to actually store and ultimately save
-        # Options are:
-        #  - Identity() (save everything)
-        #  - Window(n)  take a window average of size n
-        #  - Subsample(n) save one of every n elements
+    train_fn = getTrainFunction(exp.environment, exp.agent, params, exp.total_steps, exp.episode_cutoff)
+    jitted_train = jax.jit(train_fn)
+
+    start_time = time.time()
+    out = jitted_train(rng)
+    jax.block_until_ready(out)
+    total_time = time.time() - start_time
+
+    metrics = out["metrics"]
+
+    # collect data
+    returned_episode = jax.device_get(metrics["returned_episode"])
+    returned_returns = jax.device_get(metrics["returned_episode_returns"])
+    returned_lengths = jax.device_get(metrics["returned_episode_lengths"])
+
+    # Indices (timesteps) where an episode ended
+    timesteps = jnp.where(returned_episode, size=returned_episode.shape[0], fill_value=-1)[0]
+    timesteps = timesteps[timesteps >= 0]
+
+    # Pair timesteps with returns/lengths at those timesteps
+    episode_returns = returned_returns[returned_episode]
+    episode_lengths = returned_lengths[returned_episode]
+
+    collector = Collector(
         config={
             'return': Identity(),
             'episode': Identity(),
             'steps': Identity(),
-            'delta': Pipe(
-                MovingAverage(0.99),
-                Subsample(100),
-            ),
         },
-        # by default, ignore keys that are not explicitly listed above
         default=Ignore(),
-    ))
+    )
     collector.set_experiment_id(idx)
-    run = exp.getRun(idx)
-
-    # set random seeds accordingly
-    np.random.seed(run)
-
-    # build stateful things and attach to checkpoint
-    problem = chk.build('p', lambda: Problem(exp, idx, collector))
-    agent = chk.build('a', problem.getAgent)
-    env = chk.build('e', problem.getEnvironment)
-
-    glue = chk.build('glue', lambda: RlGlue(agent, env))
-    chk.initial_value('episode', 0)
-
-    # Run the experiment
-    start_time = time.time()
-
-    # if we haven't started yet, then make the first interaction
-    if glue.total_steps == 0:
-        glue.start()
-
-    for step in range(glue.total_steps, exp.total_steps):
-        collector.next_frame()
-        chk.maybe_save()
-        interaction = glue.step()
-
-        if interaction.term or (exp.episode_cutoff > -1 and glue.num_steps >= exp.episode_cutoff):
-            # allow agent to cleanup traces or other stateful episodic info
-            agent.cleanup()
-
-            # collect some data
-            collector.collect('return', glue.total_reward)
-            collector.collect('episode', chk['episode'])
-            collector.collect('steps', glue.num_steps)
-
-            # track how many episodes are completed (cutoff is counted as termination for this count)
-            chk['episode'] += 1
-
-            # compute the average time-per-step in ms
-            avg_time = 1000 * (time.time() - start_time) / (step + 1)
-            fps = step / (time.time() - start_time)
-
-            episode = chk['episode']
-            logger.debug(f'{episode} {step} {glue.total_reward} {avg_time:.4}ms {int(fps)}')
-
-            glue.start()
+    for episode_num, (frame, ret, _len) in enumerate(zip(timesteps, episode_returns, episode_lengths, strict=True)):
+        collector.set_frame(int(frame))
+        collector.collect('return', float(ret))
+        collector.collect('episode', episode_num)
+        collector.collect('steps', int(_len))
 
     collector.reset()
 
@@ -138,4 +123,3 @@ for idx in indices:
     attach_metadata(save_path, idx, meta)
     collector.merge(context.resolve('results.db'))
     collector.close()
-    chk.delete()

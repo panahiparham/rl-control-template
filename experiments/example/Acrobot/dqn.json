@@ -1,6 +1,6 @@
 {
     "AGENT": "DQN",
-    "ENVIRONMENT": "CartPole-v1",
+    "ENVIRONMENT": "Acrobot-v1",
     "TOTAL_TIMESTEPS": 100000,
     "EPISODE_CUTOFF": 500,
     "metaParameters": {

@@ -10,7 +10,7 @@ authors = [
     {name = 'Andy Patterson', email = 'ap3@ualberta.ca'},
     {name = 'Niko Yasui', email = 'yasuiniko@gmail.com'}
 ]
-requires-python = '>=3.11'
+requires-python = '==3.12.*'
 readme = 'README.md'
 license = {text = 'MIT'}
 classifiers = [
@@ -40,6 +40,7 @@ dependencies = [
     'PyExpPlotting-andnp',
     'matplotlib',
     "ml-instrument>=0.3.1",
+    "gymnax>=0.0.9",
 ]
 
 [dependency-groups]

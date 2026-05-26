@@ -8,7 +8,6 @@ from experiment.tools import parseCmdLineArgs
 from experiment.ExperimentModel import ExperimentModel
 from utils.results import ResultCollection
 
-
 from PyExpPlotting.matplot import save, setDefaultConference
 import rlevaluation.hypers as Hypers
 from rlevaluation.statistics import Statistic
@@ -18,14 +17,9 @@ from rlevaluation.interpolation import compute_step_return
 
 setDefaultConference('jmlr')
 
-
 COLORS = {
-    'DQN': 'tab:blue',
-    'EQRC': 'purple',
-    'ESARSA': 'tab:orange',
-    'SoftmaxAC': 'tab:green',
+    'dqn': 'tab:blue',
 }
-
 
 if __name__ == "__main__":
     path, should_save, save_type = parseCmdLineArgs()
@@ -82,6 +76,10 @@ if __name__ == "__main__":
 
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+
+        ax.set_xlabel('Timesteps')
+        ax.set_ylabel('Return')
+        ax.set_title(env)
 
         path = os.path.sep.join(os.path.relpath(__file__).split(os.path.sep)[:-1])
         save(
