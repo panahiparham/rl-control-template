@@ -77,6 +77,10 @@ if __name__ == "__main__":
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
+        ax.set_xlabel('Timesteps')
+        ax.set_ylabel('Return')
+        ax.set_title(env)
+
         path = os.path.sep.join(os.path.relpath(__file__).split(os.path.sep)[:-1])
         save(
             save_path=f'{path}/plots',
