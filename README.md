@@ -24,6 +24,16 @@ Plot results:
 uv run experiments/example/learning_curve.py
 ```
 
-## Cluster setup
+## Backlog
 
-TODO!
+- [X] Local setup
+- [X] Run individual experiments locally
+- [ ] Run vmaped seeds locally
+- [ ] Run vmaped over non-static hypers locally
+- [ ] Rework data collector to collect data from inside the jitted region
+- [ ] Setup and test running on cluster
+- [ ] Support for Atari
+- [ ] Support for Craftax
+- [ ] Support for Minigrid
+- [ ] Support for checkpointing with preemption
+- [ ] Support for tracknig performace during runs
