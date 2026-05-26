@@ -7,6 +7,7 @@ import socket
 import logging
 import argparse
 import jax
+import jax.numpy as jnp
 import gymnax
 import gymnax.wrappers
 from experiment import ExperimentModel
@@ -75,13 +76,25 @@ for idx in indices:
     train_fn = getTrainFunction(exp.environment, exp.agent, params, exp.total_steps, exp.episode_cutoff)
     jitted_train = jax.jit(train_fn)
 
-    print("Compiling & Executing...")
     start_time = time.time()
     out = jitted_train(rng)
     jax.block_until_ready(out)
     total_time = time.time() - start_time
 
     metrics = out["metrics"]
+
+    # collect data
+    returned_episode = jax.device_get(metrics["returned_episode"])
+    returned_returns = jax.device_get(metrics["returned_episode_returns"])
+    returned_lengths = jax.device_get(metrics["returned_episode_lengths"])
+
+    # Indices (timesteps) where an episode ended
+    timesteps = jnp.where(returned_episode, size=returned_episode.shape[0], fill_value=-1)[0]
+    timesteps = timesteps[timesteps >= 0]
+
+    # Pair timesteps with returns/lengths at those timesteps
+    episode_returns = returned_returns[returned_episode]
+    episode_lengths = returned_lengths[returned_episode]
 
     collector = Collector(
         config={
@@ -92,10 +105,11 @@ for idx in indices:
         default=Ignore(),
     )
     collector.set_experiment_id(idx)
-
-    # collect data
-    print(metrics['returned_episode_lengths'].shape)
-    print(metrics['returned_episode_returns'].shape)
+    for episode_num, (frame, ret, _len) in enumerate(zip(timesteps, episode_returns, episode_lengths, strict=True)):
+        collector.set_frame(int(frame))
+        collector.collect('return', float(ret))
+        collector.collect('episode', episode_num)
+        collector.collect('steps', int(_len))
 
     collector.reset()
 
