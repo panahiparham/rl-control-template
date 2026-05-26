@@ -1,25 +1,20 @@
 {
-    "agent": "DQN",
-    "problem": "Cartpole",
-    "total_steps": 100000,
-    "episode_cutoff": -1,
+    "AGENT": "DQN",
+    "ENVIRONMENT": "CartPole-v1",
+    "TOTAL_TIMESTEPS": 50000,
+    "EPISODE_CUTOFF": 300,
     "metaParameters": {
-        "epsilon": 0.1,
-        "target_refresh": 128,
-        "buffer_type": "uniform",
-        "buffer_size": 4000,
-        "batch": 32,
-
-        "optimizer": {
-            "name": "ADAM",
-            "alpha": 0.001,
-            "beta1": 0.9,
-            "beta2": 0.999
-        },
-
-        "representation": {
-            "type": "TwoLayerRelu",
-            "hidden": 64
-        }
+        "LR": 0.0001,
+        "BUFFER_SIZE": 10000,
+        "BATCH_SIZE": 64,
+        "LEARNING_STARTS": 1000,
+        "TRAIN_FREQUENCY": 1,
+        "TARGET_NETWORK_FREQUENCY": 128,
+        "GAMMA": 0.99,
+        "TAU": 1.0,
+        "EPSILON_START": 0.1,
+        "EPSILON_END": 0.1,
+        "EPSILON_FRACTION": 0.5,
+        "NETWORK_PRESET": "mlp"
     }
 }
