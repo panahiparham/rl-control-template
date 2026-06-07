@@ -16,7 +16,7 @@ from PyExpUtils.results.tools import getParamsAsDict
 from ml_instrumentation.Collector import Collector
 from ml_instrumentation.Sampler import Identity, Ignore
 from ml_instrumentation.metadata import attach_metadata
-from rl_agents.registry import agent_registry
+from agents.registry import agent_registry
 
 # ------------------
 # -- Command Args --

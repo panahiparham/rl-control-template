@@ -1,14 +1,24 @@
 # RL Research Template
 
-A simplified version [RL Control Template](https://github.com/andnp/rl-control-template) using pure-jax implementation of DQN from [Jax Research Template](https://github.com/andnp/jax-research-template).
+A minimal fork of [RL Control Template](https://github.com/andnp/rl-control-template) to be used within [Jax Research Template](https://github.com/andnp/jax-research-template).
 
-## Local setup
+
+# Mono-repo setup
+TODO
+
+# Project setup
+TODO
+
+# Installing dependencies
+TODO
+
 
 Install dependencies:
 ```bash
 uv sync
 ```
 
+# Experiment workflow
 Run a single experiment:
 ```bash
 uv run src/main.py -e experiments/example/MountainCar/dqn.json -i 0
@@ -24,10 +34,18 @@ Plot results:
 uv run experiments/example/learning_curve.py
 ```
 
+# Algorithm development workflow
+TODO
+
+
+# Automated Tests
+TODO
+
 ## Backlog
 
 - [X] Local setup
 - [X] Run individual experiments locally
+- [ ] Reproduce results within mono-repo
 - [ ] Run vmaped seeds locally
 - [ ] Run vmaped over non-static hypers locally
 - [ ] Rework data collector to collect data from inside the jitted region
