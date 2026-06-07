@@ -7,6 +7,7 @@ import argparse
 import subprocess
 from functools import partial
 from multiprocessing.pool import Pool
+from glob import glob
 
 from utils.results import gather_missing_indices
 import experiment.ExperimentModel as Experiment
@@ -27,6 +28,17 @@ def count(pre, it):
 
 if __name__ == "__main__":
     cmdline = parser.parse_args()
+
+    # Expand glob patterns in the -e arguments
+    expanded_paths = []
+    for pattern in cmdline.e:
+        matches = glob(pattern, recursive=True)
+        if matches:
+            expanded_paths.extend(matches)
+        else:
+            expanded_paths.append(pattern)  # Keep original if no matches
+
+    cmdline.e = sorted(expanded_paths)
 
     pool = Pool()
 
