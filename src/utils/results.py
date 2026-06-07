@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterable, Sequence
 import importlib
+import sqlite3
 from pathlib import Path
 from PyExpUtils.models.ExperimentDescription import ExperimentDescription, loadExperiment
 from PyExpUtils.results.tools import getHeader, getParamsAsDict
@@ -95,12 +96,57 @@ def detect_missing_indices(exp: ExperimentDescription, runs: int, base: str = '.
 
     n_params = exp.numPermutations()
     for param_id in range(n_params):
-        run_ids = set(get_run_ids(path, getParamsAsDict(exp, param_id, header=header)))
+        params_dict = getParamsAsDict(exp, param_id, header=header)
 
-        for seed in range(runs):
-            run_id = seed * n_params + param_id
-            if run_id not in run_ids:
-                yield run_id
+        # Query database to get the actual seeds present for this parameter config
+        seeds_in_db = set()
+        query_succeeded = False
+        try:
+            conn = sqlite3.connect(path)
+            cursor = conn.cursor()
+
+            # Query the _metadata_ table for seeds matching this parameter config
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='_metadata_'")
+            if cursor.fetchone():
+                query_succeeded = True
+
+                # Build WHERE clause for parameter filtering
+                where_parts = []
+                where_values = []
+                for key, value in params_dict.items():
+                    where_parts.append(f"{key} = ?")
+                    where_values.append(value)
+
+                if where_parts:
+                    where_clause = " AND ".join(where_parts)
+                    query = f"SELECT DISTINCT seed FROM _metadata_ WHERE {where_clause}"
+                    cursor.execute(query, where_values)
+
+                    for (seed,) in cursor.fetchall():
+                        try:
+                            seeds_in_db.add(int(seed))
+                        except (ValueError, TypeError):
+                            pass
+
+            conn.close()
+        except Exception:
+            # If query fails, query_succeeded stays False
+            pass
+
+        # Use metadata-based detection if query succeeded
+        if query_succeeded:
+            # Check which seeds are missing based on actual metadata
+            for seed in range(runs):
+                if seed not in seeds_in_db:
+                    idx = seed * n_params + param_id
+                    yield idx
+        else:
+            # Fallback: use old idx formula logic only if metadata query failed
+            run_ids = set(get_run_ids(path, params_dict))
+            for seed in range(runs):
+                run_id = seed * n_params + param_id
+                if run_id not in run_ids:
+                    yield run_id
 
 
 def gather_missing_indices(experiment_paths: Iterable[str], runs: int, loader: Callable[[str], ExperimentDescription] = loadExperiment, base: str = './'):
