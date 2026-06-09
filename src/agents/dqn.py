@@ -141,26 +141,8 @@ class DQNTrainOutput(TypedDict):
     metrics: dict[str, jax.Array]
 
 
-def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: object | None = None) -> Callable[[jax.Array, dict | None], DQNTrainOutput]:
-    def train(rng: jax.Array, hypers: dict | None = None) -> DQNTrainOutput:
-        # Merge hypers with config defaults
-        if hypers is None:
-            hypers = {}
-
-        # Extract hyperparameters with fallbacks to config
-        lr = hypers.get('LR', config.LR)
-        buffer_size = hypers.get('BUFFER_SIZE', config.BUFFER_SIZE)
-        batch_size = hypers.get('BATCH_SIZE', config.BATCH_SIZE)
-        learning_starts = hypers.get('LEARNING_STARTS', config.LEARNING_STARTS)
-        train_frequency = hypers.get('TRAIN_FREQUENCY', config.TRAIN_FREQUENCY)
-        target_network_frequency = hypers.get('TARGET_NETWORK_FREQUENCY', config.TARGET_NETWORK_FREQUENCY)
-        gamma = hypers.get('GAMMA', config.GAMMA)
-        tau = hypers.get('TAU', config.TAU)
-        epsilon_start = hypers.get('EPSILON_START', config.EPSILON_START)
-        epsilon_end = hypers.get('EPSILON_END', config.EPSILON_END)
-        epsilon_fraction = hypers.get('EPSILON_FRACTION', config.EPSILON_FRACTION)
-        total_timesteps = hypers.get('TOTAL_TIMESTEPS', config.TOTAL_TIMESTEPS)
-
+def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: object | None = None) -> Callable[[jax.Array], DQNTrainOutput]:
+    def train(rng: jax.Array) -> DQNTrainOutput:
         # INIT NETWORK
         observation_shape = tuple(env.observation_space(env_params).shape)
         network = _make_q_network(config, env.action_space(env_params).n, observation_shape=observation_shape)
@@ -170,7 +152,7 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
 
         target_params = params
 
-        tx = optax.adam(lr)
+        tx = optax.adam(config.LR)
         train_state = TrainState.create(
             apply_fn=network.apply,
             params=params,
@@ -179,7 +161,7 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
 
         # INIT BUFFER
         buffer = ReplayBuffer(
-            buffer_size,
+            config.BUFFER_SIZE,
             env.observation_space(env_params).shape,
             (),  # action_shape for discrete is empty
             jnp.int32,  # action_dtype
@@ -195,10 +177,10 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
 
             # EPSILON GREEDY
             epsilon = jnp.maximum(
-                epsilon_end,
-                epsilon_start
-                - (epsilon_start - epsilon_end)
-                * (t / (total_timesteps * epsilon_fraction)),
+                config.EPSILON_END,
+                config.EPSILON_START
+                - (config.EPSILON_START - config.EPSILON_END)
+                * (t / (config.TOTAL_TIMESTEPS * config.EPSILON_FRACTION)),
             )
 
             rng, _rng_action, _rng_step = jax.random.split(rng, 3)
@@ -226,7 +208,7 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
             # TRAIN
             def _do_train(train_state: TrainState, target_params: VariableDict, buffer_state: ReplayBufferState, rng: jax.Array) -> tuple[TrainState, jax.Array]:
                 rng, _rng = jax.random.split(rng)
-                obs, actions, rewards, next_obs, dones = buffer.sample(buffer_state, _rng, batch_size)
+                obs, actions, rewards, next_obs, dones = buffer.sample(buffer_state, _rng, config.BATCH_SIZE)
 
                 def _loss_fn(
                     params: VariableDict,
@@ -242,7 +224,7 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
 
                     next_q_values = network.apply(target_params, next_obs)
                     next_q_max = jnp.max(next_q_values, axis=-1)
-                    target = rewards + gamma * next_q_max * (1.0 - dones)
+                    target = rewards + config.GAMMA * next_q_max * (1.0 - dones)
 
                     loss = jnp.mean(jnp.square(q_action - jax.lax.stop_gradient(target)))
                     return loss
@@ -252,7 +234,7 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
                 train_state = train_state.apply_gradients(grads=grads)
                 return train_state, loss
 
-            can_train = (t > learning_starts) & (t % train_frequency == 0)
+            can_train = (t > config.LEARNING_STARTS) & (t % config.TRAIN_FREQUENCY == 0)
             train_state, loss = jax.lax.cond(
                 can_train,
                 lambda: _do_train(train_state, target_params, buffer_state, rng),
@@ -260,11 +242,11 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
             )
 
             # UPDATE TARGET
-            should_update_target = t % target_network_frequency == 0
+            should_update_target = t % config.TARGET_NETWORK_FREQUENCY == 0
             target_params = jax.lax.cond(
                 should_update_target,
                 lambda: jax.tree_util.tree_map(
-                    lambda tp, p: tau * p + (1.0 - tau) * tp,
+                    lambda tp, p: config.TAU * p + (1.0 - config.TAU) * tp,
                     target_params,
                     train_state.params,
                 ),
