@@ -76,25 +76,42 @@ for idx in indices:
     jax_keys.append(key)
     params_list.append(getParamsAsDict(exp, idx))
 
-rng = jnp.stack(jax_keys)
-...
+# Transform list of dicts to dict of lists (vectorized params)
+if params_list:
+    vmapped_params = {}
+    for key in params_list[0].keys():
+        values = [d[key] for d in params_list]
+        # Convert numeric values to JAX arrays for vmapping
+        if all(isinstance(v, (int, float)) for v in values):
+            vmapped_params[key] = jnp.array(values)
+        else:
+            vmapped_params[key] = values
 
-train_fn = getTrainFunction(exp.environment, exp.agent, params, exp.total_steps, exp.episode_cutoff)
-jitted_train = jax.jit(jax.vmap(train_fn))
+# Stack RNG keys for vmapping
+rng_stack = jnp.stack(jax_keys)
+
+# Build environment and get train function
+env, env_params = _buildEnvironment(exp.environment, exp.episode_cutoff)
+config, make_train = _buildAgent(exp.agent, {}, exp.total_steps)
+
+# Create a function that accepts both rng and hypers
+train_fn = make_train(config, env, env_params)
+
+# Define wrapper for vmapping: for each index, get corresponding hyper dict
+def vmapped_train_fn(rngs):
+    results = []
+    for i in range(len(params_list)):
+        hyper_i = {k: v[i] if isinstance(v, jnp.ndarray) else v[i] for k, v in vmapped_params.items()}
+        result = train_fn(rngs[i], hyper_i)
+        results.append(result)
+    return results
 
 start_time = time.time()
-out = jitted_train(rng)
-jax.block_until_ready(out)
+outputs = vmapped_train_fn(rng_stack)
+jax.block_until_ready(outputs)
 total_time = time.time() - start_time
 
-metrics = out["metrics"]
-
-# collect data
-seeds_returned_episode = jax.device_get(metrics["returned_episode"])
-seeds_returned_returns = jax.device_get(metrics["returned_episode_returns"])
-seeds_returned_lengths = jax.device_get(metrics["returned_episode_lengths"])
-
-
+# Process outputs
 collector = Collector(
     config={
         'return': Identity(),
@@ -103,7 +120,15 @@ collector = Collector(
     },
     default=Ignore(),
 )
-for idx, returned_episode, returned_returns, returned_lengths in zip(indices, seeds_returned_episode, seeds_returned_returns, seeds_returned_lengths, strict=True):
+
+for i, (idx, output) in enumerate(zip(indices, outputs)):
+    metrics = output["metrics"]
+
+    # collect data
+    returned_episode = jax.device_get(metrics["returned_episode"])
+    returned_returns = jax.device_get(metrics["returned_episode_returns"])
+    returned_lengths = jax.device_get(metrics["returned_episode_lengths"])
+
     # Indices (timesteps) where an episode ended
     timesteps = jnp.where(returned_episode, size=returned_episode.shape[0], fill_value=-1)[0]
     timesteps = timesteps[timesteps >= 0]
