@@ -45,7 +45,8 @@ TODO
 
 - [X] Local setup
 - [X] Run individual experiments locally
-- [ ] Reproduce results within mono-repo
+- [x] Reproduce results within mono-repo
+- [x] Fix missing idx issue when changing json files
 - [ ] Run vmaped seeds locally
 - [ ] Run vmaped over non-static hypers locally
 - [ ] Rework data collector to collect data from inside the jitted region

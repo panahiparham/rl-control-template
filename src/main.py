@@ -68,26 +68,42 @@ def getTrainFunction(environment_name, agent_name, params, total_steps, episode_
 exp = ExperimentModel.load(args.exp)
 indices = args.idxs
 
+jax_keys = []
+params_list = []
 for idx in indices:
     run = exp.getRun(idx)
-    params = exp.get_hypers(idx)
-    rng = jax.random.key(idx)
+    key = jax.random.key(run)
+    jax_keys.append(key)
+    params_list.append(getParamsAsDict(exp, idx))
 
-    train_fn = getTrainFunction(exp.environment, exp.agent, params, exp.total_steps, exp.episode_cutoff)
-    jitted_train = jax.jit(train_fn)
+rng = jnp.stack(jax_keys)
+...
 
-    start_time = time.time()
-    out = jitted_train(rng)
-    jax.block_until_ready(out)
-    total_time = time.time() - start_time
+train_fn = getTrainFunction(exp.environment, exp.agent, params, exp.total_steps, exp.episode_cutoff)
+jitted_train = jax.jit(jax.vmap(train_fn))
 
-    metrics = out["metrics"]
+start_time = time.time()
+out = jitted_train(rng)
+jax.block_until_ready(out)
+total_time = time.time() - start_time
 
-    # collect data
-    returned_episode = jax.device_get(metrics["returned_episode"])
-    returned_returns = jax.device_get(metrics["returned_episode_returns"])
-    returned_lengths = jax.device_get(metrics["returned_episode_lengths"])
+metrics = out["metrics"]
 
+# collect data
+seeds_returned_episode = jax.device_get(metrics["returned_episode"])
+seeds_returned_returns = jax.device_get(metrics["returned_episode_returns"])
+seeds_returned_lengths = jax.device_get(metrics["returned_episode_lengths"])
+
+
+collector = Collector(
+    config={
+        'return': Identity(),
+        'episode': Identity(),
+        'steps': Identity(),
+    },
+    default=Ignore(),
+)
+for idx, returned_episode, returned_returns, returned_lengths in zip(indices, seeds_returned_episode, seeds_returned_returns, seeds_returned_lengths, strict=True):
     # Indices (timesteps) where an episode ended
     timesteps = jnp.where(returned_episode, size=returned_episode.shape[0], fill_value=-1)[0]
     timesteps = timesteps[timesteps >= 0]
@@ -96,14 +112,6 @@ for idx in indices:
     episode_returns = returned_returns[returned_episode]
     episode_lengths = returned_lengths[returned_episode]
 
-    collector = Collector(
-        config={
-            'return': Identity(),
-            'episode': Identity(),
-            'steps': Identity(),
-        },
-        default=Ignore(),
-    )
     collector.set_experiment_id(idx)
     for episode_num, (frame, ret, _len) in enumerate(zip(timesteps, episode_returns, episode_lengths, strict=True)):
         collector.set_frame(int(frame))
@@ -122,4 +130,4 @@ for idx in indices:
     meta |= {'seed': exp.getRun(idx)}
     attach_metadata(save_path, idx, meta)
     collector.merge(context.resolve('results.db'))
-    collector.close()
+collector.close()
