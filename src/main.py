@@ -76,38 +76,27 @@ for idx in indices:
     jax_keys.append(key)
     params_list.append(getParamsAsDict(exp, idx))
 
-# Transform list of dicts to dict of lists (vectorized params)
-if params_list:
-    vmapped_params = {}
-    for key in params_list[0].keys():
-        values = [d[key] for d in params_list]
-        # Convert numeric values to JAX arrays for vmapping
-        if all(isinstance(v, (int, float)) for v in values):
-            vmapped_params[key] = jnp.array(values)
-        else:
-            vmapped_params[key] = values
+# Hypers that affect static array shapes or scan length — cannot be vmapped.
+STATIC_HYPER_KEYS = {'BUFFER_SIZE', 'BATCH_SIZE', 'TOTAL_TIMESTEPS', 'NETWORK_PRESET'}
 
-# Stack RNG keys for vmapping
+# Build batched hypers: stack numeric, non-static hypers into JAX arrays shape (N,).
+batched_hypers: dict[str, jax.Array] = {}
+for k in params_list[0]:
+    if k in STATIC_HYPER_KEYS:
+        continue
+    vals = [d[k] for d in params_list]
+    if all(isinstance(v, (int, float)) for v in vals):
+        batched_hypers[k] = jnp.array(vals)
+
 rng_stack = jnp.stack(jax_keys)
 
-# Build environment and get train function
+# Build env and train function with first idx's static hypers baked into config.
 env, env_params = _buildEnvironment(exp.environment, exp.episode_cutoff)
-config, make_train = _buildAgent(exp.agent, {}, exp.total_steps)
-
-# Create a function that accepts both rng and hypers
+config, make_train = _buildAgent(exp.agent, params_list[0], exp.total_steps)
 train_fn = make_train(config, env, env_params)
 
-# Define wrapper for vmapping: for each index, get corresponding hyper dict
-def vmapped_train_fn(rngs):
-    results = []
-    for i in range(len(params_list)):
-        hyper_i = {k: v[i] if isinstance(v, jnp.ndarray) else v[i] for k, v in vmapped_params.items()}
-        result = train_fn(rngs[i], hyper_i)
-        results.append(result)
-    return results
-
 start_time = time.time()
-outputs = vmapped_train_fn(rng_stack)
+outputs = jax.vmap(train_fn)(rng_stack, batched_hypers)
 jax.block_until_ready(outputs)
 total_time = time.time() - start_time
 
@@ -121,8 +110,8 @@ collector = Collector(
     default=Ignore(),
 )
 
-for i, (idx, output) in enumerate(zip(indices, outputs)):
-    metrics = output["metrics"]
+for i, idx in enumerate(indices):
+    metrics = jax.tree_util.tree_map(lambda x: x[i], outputs["metrics"])
 
     # collect data
     returned_episode = jax.device_get(metrics["returned_episode"])
