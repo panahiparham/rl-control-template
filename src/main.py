@@ -139,5 +139,6 @@ for i, idx in enumerate(indices):
     meta |= exp.static_params
     meta |= {'seed': exp.getRun(idx)}
     attach_metadata(save_path, idx, meta)
-    collector.merge(context.resolve('results.db'))
+
+collector.merge(save_path)
 collector.close()
