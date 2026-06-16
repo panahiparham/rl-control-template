@@ -63,7 +63,7 @@ if __name__ == "__main__":
     remaining = total_missing
 
     if total_missing == 0:
-        print(f'all done!  [0/{grand_total} remaining]')
+        print(f'all done!  [{grand_total}/{grand_total} completed]')
         sys.exit(0)
 
     num_parallel = max(1, cmdline.cpus // cmdline.cores_per_task)
@@ -75,5 +75,5 @@ if __name__ == "__main__":
     with Pool(num_parallel) as pool:
         for path, n in pool.imap_unordered(run_file, tasks):
             remaining -= n
-            print(f'{path} done  [{remaining}/{grand_total} remaining]')
+            print(f'{path} done  [{grand_total - remaining}/{grand_total} completed]')
             sleep(0.1)  # small delay to ensure print order is consistent
