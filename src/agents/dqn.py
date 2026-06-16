@@ -216,16 +216,19 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
             truncated = done & (info['returned_episode_lengths'] >= env_params.max_steps_in_episode)
             terminated = done & ~truncated
 
-            # ADD TO BUFFER
-            # ReplayBuffer.add expects vectorized inputs, let's update it or wrap it
-            # For "One Agent, One World", we can just expand dims here.
-            buffer_state = buffer.add(
-                buffer_state,
-                last_obs[None, ...],
-                action[None, ...],
-                reward[None, ...],
-                obsv[None, ...],
-                terminated[None, ...]
+            # ADD TO BUFFER — skip truncated transitions: gymnax auto-resets after done=True,
+            # so obsv is the first obs of a new episode, not a valid next state for bootstrapping.
+            buffer_state = jax.lax.cond(
+                ~truncated,
+                lambda: buffer.add(
+                    buffer_state,
+                    last_obs[None, ...],
+                    action[None, ...],
+                    reward[None, ...],
+                    obsv[None, ...],
+                    terminated[None, ...],
+                ),
+                lambda: buffer_state,
             )
 
             # TRAIN
