@@ -211,6 +211,11 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
             # STEP ENV
             obsv, env_state, reward, done, info = env.step(_rng_step, env_state, action, env_params)  # gymnax JitWrapped
 
+            # Separate truncation (time limit) from true termination (task ended).
+            # returned_episode_lengths equals max_steps iff the episode timed out.
+            truncated = done & (info['returned_episode_lengths'] >= env_params.max_steps_in_episode)
+            terminated = done & ~truncated
+
             # ADD TO BUFFER
             # ReplayBuffer.add expects vectorized inputs, let's update it or wrap it
             # For "One Agent, One World", we can just expand dims here.
@@ -220,13 +225,13 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
                 action[None, ...],
                 reward[None, ...],
                 obsv[None, ...],
-                done[None, ...]
+                terminated[None, ...]
             )
 
             # TRAIN
             def _do_train(train_state: TrainState, target_params: VariableDict, buffer_state: ReplayBufferState, rng: jax.Array) -> tuple[TrainState, jax.Array]:
                 rng, _rng = jax.random.split(rng)
-                obs, actions, rewards, next_obs, dones = buffer.sample(buffer_state, _rng, batch_size)
+                obs, actions, rewards, next_obs, terminated = buffer.sample(buffer_state, _rng, batch_size)
 
                 def _loss_fn(
                     params: VariableDict,
@@ -235,20 +240,20 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
                     actions: jax.Array,
                     rewards: jax.Array,
                     next_obs: jax.Array,
-                    dones: jax.Array,
+                    terminated: jax.Array,
                 ) -> jax.Array:
                     q_values = network.apply(params, obs)
                     q_action = jnp.take_along_axis(q_values, actions[:, None], axis=-1).squeeze()
 
                     next_q_values = network.apply(target_params, next_obs)
                     next_q_max = jnp.max(next_q_values, axis=-1)
-                    target = rewards + gamma * next_q_max * (1.0 - dones)
+                    target = rewards + gamma * next_q_max * (1.0 - terminated)
 
                     loss = jnp.mean(jnp.square(q_action - jax.lax.stop_gradient(target)))
                     return loss
 
                 grad_fn = jax.value_and_grad(_loss_fn)
-                loss, grads = grad_fn(train_state.params, target_params, obs, actions, rewards, next_obs, dones)
+                loss, grads = grad_fn(train_state.params, target_params, obs, actions, rewards, next_obs, terminated)
                 train_state = train_state.apply_gradients(grads=grads)
                 return train_state, loss
 
