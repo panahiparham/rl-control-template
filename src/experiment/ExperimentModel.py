@@ -9,12 +9,15 @@ from PyExpUtils.utils.str import interpolate
 
 class ExperimentModel(ExperimentDescription):
     def __init__(self, d, path):
+        d = dict(d)
+        if 'vmapParameters' in d:
+            d['metaParameters'] = d.pop('vmapParameters')
         super().__init__(d, path)
         self.agent = d['AGENT']
         self.environment = d['ENVIRONMENT']
-
         self.episode_cutoff = d.get('EPISODE_CUTOFF', -1)
         self.total_steps = d.get('TOTAL_TIMESTEPS')
+        self.static_params: dict = d.get('staticParameters', {})
 
     def interpolateSavePath(self, idx: int, key: Optional[str] = None):
         key = self._getSaveKey(key)

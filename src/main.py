@@ -76,32 +76,18 @@ for idx in indices:
     jax_keys.append(key)
     params_list.append(getParamsAsDict(exp, idx))
 
-# Hypers that affect static array shapes or scan length — cannot be vmapped.
-STATIC_HYPER_KEYS = {'BUFFER_SIZE', 'BATCH_SIZE', 'TOTAL_TIMESTEPS', 'NETWORK_PRESET'}
-
-# Ensure static hypers are identical across all indices — they can't be vmapped.
-for k in STATIC_HYPER_KEYS:
-    vals = [d[k] for d in params_list if k in d]
-    if len(set(vals)) > 1:
-        raise ValueError(
-            f"Hyper '{k}' differs across indices {vals} but cannot be vmapped. "
-            "Run indices with different static hypers in separate calls."
-        )
-
-# Build batched hypers: stack numeric, non-static hypers into JAX arrays shape (N,).
+# Build batched hypers: all vmapParameters are safe to stack — static hypers live in exp.static_params.
 batched_hypers: dict[str, jax.Array] = {}
 for k in params_list[0]:
-    if k in STATIC_HYPER_KEYS:
-        continue
     vals = [d[k] for d in params_list]
     if all(isinstance(v, (int, float)) for v in vals):
         batched_hypers[k] = jnp.array(vals)
 
 rng_stack = jnp.stack(jax_keys)
 
-# Build env and train function with first idx's static hypers baked into config.
+# Build env and train function — merge static params with first idx's vmap params for config.
 env, env_params = _buildEnvironment(exp.environment, exp.episode_cutoff)
-config, make_train = _buildAgent(exp.agent, params_list[0], exp.total_steps)
+config, make_train = _buildAgent(exp.agent, exp.static_params | params_list[0], exp.total_steps)
 train_fn = make_train(config, env, env_params)
 
 start_time = time.time()
@@ -150,6 +136,7 @@ for i, idx in enumerate(indices):
     context = exp.buildSaveContext(idx, base=args.save_path)
     save_path = context.resolve('results.db')
     meta = getParamsAsDict(exp, idx)
+    meta |= exp.static_params
     meta |= {'seed': exp.getRun(idx)}
     attach_metadata(save_path, idx, meta)
     collector.merge(context.resolve('results.db'))
