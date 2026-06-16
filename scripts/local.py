@@ -1,3 +1,4 @@
+from time import sleep
 import sys
 import os
 sys.path.append(os.getcwd() + '/src')
@@ -7,6 +8,7 @@ import argparse
 import subprocess
 import contextlib
 from glob import glob
+from multiprocessing.pool import Pool
 
 from utils.results import gather_missing_indices
 import experiment.ExperimentModel as Experiment
@@ -16,6 +18,20 @@ parser.add_argument('--runs', type=int, required=True)
 parser.add_argument('-e', type=str, nargs='+', required=True)
 parser.add_argument('--entry', type=str, default='src/main.py')
 parser.add_argument('--results', type=str, default='./')
+parser.add_argument('--cpus', type=int, default=os.cpu_count())
+parser.add_argument('--cores-per-task', type=int, default=1)
+
+
+def run_file(args: tuple[str, list[int], str, int]) -> tuple[str, int]:
+    path, missing, entry, cores = args
+    env = os.environ.copy()
+    env['OMP_NUM_THREADS'] = str(cores)
+    subprocess.run(
+        f'python {entry} --silent -e {path} -i {" ".join(map(str, missing))}',
+        shell=True, check=True, env=env,
+    )
+    return path, len(missing)
+
 
 if __name__ == "__main__":
     cmdline = parser.parse_args()
@@ -46,12 +62,18 @@ if __name__ == "__main__":
     total_missing = sum(len(v) for v in e_to_missing.values())
     remaining = total_missing
 
-    for path, missing in e_to_missing.items():
-        if not missing:
-            continue
-        idx_args = ' '.join(map(str, missing))
-        subprocess.run(f'python {cmdline.entry} --silent -e {path} -i {idx_args}', shell=True, check=True)
-        remaining -= len(missing)
-        print(f'{path} done  [{grand_total - remaining}/{grand_total} completed]')
+    if total_missing == 0:
+        print(f'all done!  [0/{grand_total} remaining]')
+        sys.exit(0)
 
-    print(f'all done!  [{grand_total}/{grand_total} completed]')
+    num_parallel = max(1, cmdline.cpus // cmdline.cores_per_task)
+    tasks = [
+        (path, missing, cmdline.entry, cmdline.cores_per_task)
+        for path, missing in e_to_missing.items() if missing
+    ]
+
+    with Pool(num_parallel) as pool:
+        for path, n in pool.imap_unordered(run_file, tasks):
+            remaining -= n
+            print(f'{path} done  [{remaining}/{grand_total} remaining]')
+            sleep(0.1)  # small delay to ensure print order is consistent
