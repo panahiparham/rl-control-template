@@ -105,7 +105,7 @@ config, make_train = _buildAgent(exp.agent, params_list[0], exp.total_steps)
 train_fn = make_train(config, env, env_params)
 
 start_time = time.time()
-outputs = jax.vmap(train_fn)(rng_stack, batched_hypers)
+outputs = jax.jit(jax.vmap(train_fn))(rng_stack, batched_hypers)
 jax.block_until_ready(outputs)
 total_time = time.time() - start_time
 
