@@ -24,7 +24,7 @@ COLORS = {
 if __name__ == "__main__":
     path, should_save, save_type = parseCmdLineArgs()
 
-    results = ResultCollection(Model=ExperimentModel)
+    results = ResultCollection(Model=ExperimentModel, metrics=['return'])
     data_definition(
         hyper_cols=results.get_hyperparameter_columns(),
         seed_col='seed',
