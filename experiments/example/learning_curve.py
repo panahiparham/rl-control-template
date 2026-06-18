@@ -53,15 +53,16 @@ if __name__ == "__main__":
 
             exp = alg_result.exp
 
+            N_POINTS = 1000
             xs, ys = extract_learning_curves(
                 df,
                 hyper_vals=report.best_configuration,
                 metric='return',
-                interpolation=lambda x, y: compute_step_return(x, y, exp.total_steps),
+                interpolation=lambda x, y: compute_step_return(x, y, N_POINTS),
             )
 
-            xs = np.asarray(xs)[:, ::exp.total_steps // 1000]
-            ys = np.asarray(ys)[:, ::exp.total_steps // 1000]
+            xs = np.asarray(xs) * (exp.total_steps // N_POINTS)
+            ys = np.asarray(ys)
             assert np.all(np.isclose(xs[0], xs))
 
             res = curve_percentile_bootstrap_ci(
