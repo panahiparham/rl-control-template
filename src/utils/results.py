@@ -21,15 +21,7 @@ class Result[Exp: ExperimentDescription]:
         if not Path(db_path).exists():
             return None
 
-        dfs: list[pl.DataFrame] = []
-        for param_id in range(self.exp.numPermutations()):
-            params = getParamsAsDict(self.exp, param_id)
-            run_ids = get_run_ids(db_path, params)
-
-            df = load_all_results(db_path, self.metrics, run_ids)
-            dfs.append(df)
-
-        return pl.concat(dfs)
+        return load_all_results(db_path, self.metrics)
 
     @property
     def filename(self):
