@@ -69,7 +69,7 @@ if __name__ == "__main__":
                 rng=np.random.default_rng(0),
                 y=ys,
                 statistic=Statistic.mean,
-                iterations=10000,
+                iterations=500,
             )
 
             ax.plot(xs[0], res.sample_stat, label=alg, color=COLORS[alg], linewidth=1.0)
