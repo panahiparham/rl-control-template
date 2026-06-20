@@ -5,7 +5,7 @@ from pathlib import Path
 from PyExpUtils.models.ExperimentDescription import ExperimentDescription, loadExperiment
 from PyExpUtils.results.tools import getHeader, getParamsAsDict
 from PyExpUtils.results.indices import listIndices
-from ml_instrumentation.reader import load_all_results, get_run_ids
+from ml_instrumentation.reader import load_all_results, get_run_ids  # get_run_ids used in detect_missing_indices
 
 import polars as pl
 
@@ -21,7 +21,21 @@ class Result[Exp: ExperimentDescription]:
         if not Path(db_path).exists():
             return None
 
-        return load_all_results(db_path, self.metrics)
+        df = load_all_results(db_path, self.metrics)
+        if df is None or df.is_empty():
+            return df
+
+        header = getHeader(self.exp)
+        filter_expr = pl.lit(False)
+        for param_id in range(self.exp.numPermutations()):
+            params = getParamsAsDict(self.exp, param_id, header=header)
+            perm_cond = pl.lit(True)
+            for k, v in params.items():
+                if k in df.columns:
+                    perm_cond = perm_cond & (pl.col(k) == v)
+            filter_expr = filter_expr | perm_cond
+
+        return df.filter(filter_expr)
 
     @property
     def filename(self):
@@ -75,6 +89,78 @@ class ResultCollection[Exp: ExperimentDescription]:
 
     def __iter__(self):
         return map(self._result, self.paths)
+
+
+def _get_max_id(db_path: str | Path) -> int:
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return -1
+    con = sqlite3.connect(db_path)
+    cur = con.cursor()
+    tables = [r[0] for r in cur.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()]
+    max_id = -1
+    for table in tables:
+        try:
+            row = cur.execute(f'SELECT MAX(id) FROM "{table}"').fetchone()
+            if row and row[0] is not None:
+                max_id = max(max_id, int(row[0]))
+        except Exception:
+            pass
+    con.close()
+    return max_id
+
+
+def assign_storage_ids(
+    db_path: str | Path,
+    indices: list[int],
+    params_list: list[dict],
+) -> dict[int, int]:
+    db_path = Path(db_path)
+
+    existing_meta: dict[int, list[dict]] = {}
+    if db_path.exists():
+        con = sqlite3.connect(db_path)
+        cur = con.cursor()
+        tables = set(r[0] for r in cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall())
+        if '_metadata_' in tables:
+            rows = cur.execute('SELECT * FROM _metadata_').fetchall()
+            col_names = [d[0] for d in cur.description]
+            for row in rows:
+                row_dict = dict(zip(col_names, row))
+                rid = row_dict['id']
+                existing_meta.setdefault(rid, []).append(row_dict)
+        con.close()
+
+    # Determine which indices collide (same id in DB but different params)
+    collisions = []
+    for idx, params in zip(indices, params_list):
+        existing_rows = existing_meta.get(idx, [])
+        col = existing_rows and not any(
+            all(r.get(k) == v for k, v in params.items())
+            for r in existing_rows
+        )
+        collisions.append(col)
+
+    # Reserved: all existing DB ids + formula ids used by non-collision indices
+    reserved = set(existing_meta.keys()) | {idx for idx, col in zip(indices, collisions) if not col}
+
+    storage_ids: dict[int, int] = {}
+    next_id = _get_max_id(db_path) + 1
+    for idx, col in zip(indices, collisions):
+        if not col:
+            storage_ids[idx] = idx
+        else:
+            while next_id in reserved:
+                next_id += 1
+            storage_ids[idx] = next_id
+            reserved.add(next_id)
+            next_id += 1
+
+    return storage_ids
 
 
 def detect_missing_indices(exp: ExperimentDescription, runs: int, base: str = './'):

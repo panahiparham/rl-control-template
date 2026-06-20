@@ -13,6 +13,8 @@ import gymnax.wrappers
 from experiment import ExperimentModel
 from PyExpUtils.results.tools import getParamsAsDict
 
+from filelock import FileLock
+from utils.results import assign_storage_ids
 from ml_instrumentation.Collector import Collector
 from ml_instrumentation.Sampler import Identity, Ignore
 from ml_instrumentation.metadata import attach_metadata
@@ -90,6 +92,12 @@ env, env_params = _buildEnvironment(exp.environment, exp.episode_cutoff)
 config, make_train = _buildAgent(exp.agent, exp.static_params | params_list[0], exp.total_steps)
 train_fn = make_train(config, env, env_params)
 
+# All indices share the same save path (same JSON → same static params → same DB).
+save_path = exp.buildSaveContext(indices[0], base=args.save_path).resolve('results.db')
+db_lock = FileLock(f'{save_path}.lock')
+with db_lock:
+    storage_ids = assign_storage_ids(save_path, indices, params_list)
+
 start_time = time.time()
 outputs = jax.jit(jax.vmap(train_fn))(rng_stack, batched_hypers)
 jax.block_until_ready(outputs)
@@ -105,6 +113,7 @@ collector = Collector(
     default=Ignore(),
 )
 
+pending_meta: list[tuple] = []
 for i, idx in enumerate(indices):
     metrics = jax.tree_util.tree_map(lambda x: x[i], outputs["metrics"])
 
@@ -121,7 +130,7 @@ for i, idx in enumerate(indices):
     episode_returns = returned_returns[returned_episode]
     episode_lengths = returned_lengths[returned_episode]
 
-    collector.set_experiment_id(idx)
+    collector.set_experiment_id(storage_ids[idx])
     for episode_num, (frame, ret, _len) in enumerate(zip(timesteps, episode_returns, episode_lengths, strict=True)):
         collector.set_frame(int(frame))
         collector.collect('return', float(ret))
@@ -130,15 +139,13 @@ for i, idx in enumerate(indices):
 
     collector.reset()
 
-    # ------------
-    # -- Saving --
-    # ------------
-    context = exp.buildSaveContext(idx, base=args.save_path)
-    save_path = context.resolve('results.db')
     meta = getParamsAsDict(exp, idx)
     meta |= exp.static_params
     meta |= {'seed': exp.getRun(idx)}
-    attach_metadata(save_path, idx, meta)
+    pending_meta.append((save_path, idx, meta))
 
 collector.merge(save_path)
 collector.close()
+
+for _save_path, _idx, _meta in pending_meta:
+    attach_metadata(_save_path, storage_ids[_idx], _meta, lock=db_lock)
