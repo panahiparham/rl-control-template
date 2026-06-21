@@ -19,6 +19,12 @@ setDefaultConference('jmlr')
 
 COLORS = {
     'dqn': 'tab:blue',
+    'ln-dqn': 'tab:red',
+}
+
+LABELS = {
+    'dqn': 'DQN [MLP]',
+    'ln-dqn': 'DQN [Layer Norm + MLP]',
 }
 
 if __name__ == "__main__":
@@ -73,7 +79,7 @@ if __name__ == "__main__":
                 iterations=500,
             )
 
-            ax.plot(xs[0], res.sample_stat, label=alg, color=COLORS[alg], linewidth=1.0)
+            ax.plot(xs[0], res.sample_stat, label=LABELS[alg], color=COLORS[alg], linewidth=1.0)
             ax.fill_between(xs[0], res.ci[0], res.ci[1], color=COLORS[alg], alpha=0.2)
 
         ax.spines['top'].set_visible(False)
@@ -82,6 +88,7 @@ if __name__ == "__main__":
         ax.set_xlabel('Timesteps')
         ax.set_ylabel('Return')
         ax.set_title(env)
+        ax.legend(loc = 'lower right')
 
         path = os.path.sep.join(os.path.relpath(__file__).split(os.path.sep)[:-1])
         save(
