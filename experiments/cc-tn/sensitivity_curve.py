@@ -18,6 +18,12 @@ setDefaultConference('jmlr')
 
 COLORS = {
     'dqn': 'tab:blue',
+    'ln-dqn': 'tab:red',
+}
+
+LABELS = {
+    'dqn': 'DQN [MLP]',
+    'ln-dqn': 'DQN [Layer Norm + MLP]',
 }
 
 if __name__ == "__main__":
@@ -71,7 +77,7 @@ if __name__ == "__main__":
             ys = ys[:, order]
 
             for y in ys:
-                ax.plot(x, y, color='tab:gray', alpha=0.2, linewidth=0.5)
+                ax.plot(x, y, color=COLORS[alg], alpha=0.2, linewidth=0.5)
 
             res = curve_percentile_bootstrap_ci(
                 rng=np.random.default_rng(0),
@@ -81,7 +87,7 @@ if __name__ == "__main__":
             )
 
 
-            ax.plot(x, res.sample_stat, label=alg, color=COLORS[alg], linewidth=1.0)
+            ax.plot(x, res.sample_stat, label=LABELS[alg], color=COLORS[alg], linewidth=1.0)
             ax.fill_between(x, res.ci[0], res.ci[1], color=COLORS[alg], alpha=0.2)
 
         ax.spines['top'].set_visible(False)
