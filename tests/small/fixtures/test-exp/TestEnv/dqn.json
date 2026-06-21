@@ -1,0 +1,13 @@
+{
+    "AGENT": "DQN",
+    "ENVIRONMENT": "TestEnv-v0",
+    "TOTAL_TIMESTEPS": 100,
+    "EPISODE_CUTOFF": 10,
+    "vmapParameters": {
+        "LR": [0.001, 0.01],
+        "TARGET_NETWORK_FREQUENCY": [1, 8]
+    },
+    "staticParameters": {
+        "BATCH_SIZE": 64
+    }
+}
