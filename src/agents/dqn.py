@@ -30,7 +30,7 @@ class DQNConfig:
     EPSILON_FRACTION: float = 0.5
     ENV_NAME: str = "MountainCar-v0"
     SEED: int = 42
-    NETWORK_PRESET: Literal["mlp", "nature_cnn"] = "mlp"
+    NETWORK_PRESET: Literal["mlp", "nature_cnn", "ln-mlp"] = "mlp"
 
 
 class QNetwork(TypedApply[jax.Array], nn.Module):
@@ -46,9 +46,24 @@ class QNetwork(TypedApply[jax.Array], nn.Module):
         return x
 
 
+class LNQNetwork(TypedApply[jax.Array], nn.Module):
+    action_dim: int
+
+    @nn.compact
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        x = nn.Dense(64)(x)
+        x = nn.LayerNorm()(x)
+        x = nn.relu(x)
+        x = nn.Dense(64)(x)
+        x = nn.LayerNorm()(x)
+        x = nn.relu(x)
+        x = nn.Dense(self.action_dim)(x)
+        return x
+
+
 class _HasNetworkPreset(Protocol):
     @property
-    def NETWORK_PRESET(self) -> Literal["mlp", "nature_cnn"]: ...
+    def NETWORK_PRESET(self) -> Literal["mlp", "nature_cnn", "ln-mlp"]: ...
 
 
 class NatureQNetwork(TypedApply[jax.Array], nn.Module):
@@ -112,9 +127,11 @@ def _make_q_network(
     config: _HasNetworkPreset,
     action_dim: int,
     observation_shape: tuple[int, ...] | None = None,
-) -> QNetwork | NatureQNetwork:
+) -> QNetwork | LNQNetwork | NatureQNetwork:
     if config.NETWORK_PRESET == "mlp":
         return QNetwork(action_dim)
+    if config.NETWORK_PRESET == "ln-mlp":
+        return LNQNetwork(action_dim)
     if config.NETWORK_PRESET == "nature_cnn":
         if observation_shape is None:
             raise ValueError("NETWORK_PRESET='nature_cnn' requires observation_shape to build the Q-network.")
@@ -123,7 +140,7 @@ def _make_q_network(
             observation_layout=_infer_nature_observation_layout(observation_shape),
         )
     raise ValueError(
-        f"Invalid NETWORK_PRESET {config.NETWORK_PRESET!r}. Expected one of: 'mlp', 'nature_cnn'."
+        f"Invalid NETWORK_PRESET {config.NETWORK_PRESET!r}. Expected one of: 'mlp', 'ln-mlp', 'nature_cnn'."
     )
 
 
