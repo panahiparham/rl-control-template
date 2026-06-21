@@ -77,7 +77,7 @@ if __name__ == "__main__":
             ys = ys[:, order]
 
             for y in ys:
-                ax.plot(x, y, color=COLORS[alg], alpha=0.2, linewidth=0.5)
+                ax.plot(x, y, color=COLORS[alg], alpha=0.2, linewidth=0.4)
 
             res = curve_percentile_bootstrap_ci(
                 rng=np.random.default_rng(0),
@@ -87,8 +87,8 @@ if __name__ == "__main__":
             )
 
 
-            ax.plot(x, res.sample_stat, label=LABELS[alg], color=COLORS[alg], linewidth=1.0)
-            ax.fill_between(x, res.ci[0], res.ci[1], color=COLORS[alg], alpha=0.2)
+            ax.plot(x, res.sample_stat, label=LABELS[alg], color=COLORS[alg], linewidth=1.5)
+            ax.fill_between(x, res.ci[0], res.ci[1], color=COLORS[alg], alpha=0.3)
 
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         ax.set_xscale('log')
         ax.set_xticks(x)
         ax.set_xticklabels(x)
-        ax.set_ylabel('Return')
+        ax.set_ylabel('Average Lifetime \n Return')
         ax.set_title(env)
 
         path = os.path.sep.join(os.path.relpath(__file__).split(os.path.sep)[:-1])
