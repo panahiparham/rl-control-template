@@ -13,7 +13,6 @@ import rlevaluation.hypers as Hypers
 from rlevaluation.statistics import Statistic
 from rlevaluation.temporal import TimeSummary, extract_learning_curves, curve_percentile_bootstrap_ci
 from rlevaluation.config import data_definition
-from rlevaluation.interpolation import compute_step_return
 
 setDefaultConference('jmlr')
 
@@ -65,9 +64,8 @@ if __name__ == "__main__":
                 rets[tn_refresh] = np.array([np.mean(y) for y in ys])
 
             # Draw sensitivity curve for target network refresh frequency
-
             x = np.array(list(rets.keys()))
-            ys = np.array([x[:10] for x in rets.values()]).T # Only use 10 seeds!
+            ys = np.array([x[:] for x in rets.values()]).T # use all seeds!
             order = np.argsort(x)
             x = x[order]
             ys = ys[:, order]
