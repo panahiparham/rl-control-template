@@ -44,9 +44,14 @@ dev = [
     'pyright',
     'commitizen',
     'pre-commit',
+    'pytest',
 ]
 
 [tool]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
 [tool.commitizen]
 name = 'cz_conventional_commits'
 version = '0.0.0'

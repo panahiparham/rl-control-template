@@ -31,7 +31,8 @@ Template for all future RL research projects. Must stay minimal and clean, demon
 
 # Tests
 - Small tests: `tests/small/`, run with `pytest tests/small/ -v` from the project root.
-- CI: `.github/workflows/test-rl-control-template.yml` — runs on PRs touching this project.
+- CI: `.github/workflows/test.yml` — runs on all PRs to `main`.
+- **When implementing new functionality, write small tests for it in `tests/small/` as part of the same change.**
 
 # ml_instrumentation reader API
 Key functions from `ml_instrumentation.reader` (`.venv/lib/python3.13/site-packages/ml_instrumentation/reader.py`):

@@ -1,0 +1,27 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-small:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install test dependencies
+        run: |
+          pip install \
+            pytest \
+            'PyExpUtils-andnp~=8.0' \
+            'ml-instrument>=0.3.1' \
+            polars
+
+      - name: Run small tests
+        run: pytest tests/small/ -x -q
