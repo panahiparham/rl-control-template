@@ -107,6 +107,7 @@ if __name__ == "__main__":
         ax.set_xticks(x)
         ax.set_xticklabels(x)
         ax.set_ylabel('Average Lifetime \n Return')
+        ax.legend(loc='upper right')
         ax.set_title(env)
 
         path = os.path.sep.join(os.path.relpath(__file__).split(os.path.sep)[:-1])

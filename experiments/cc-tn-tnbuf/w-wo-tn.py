@@ -114,9 +114,9 @@ if __name__ == "__main__":
         ax.set_ylabel('Return')
 
         if env == 'MountainCar':
-            ax.set_ylim(-400, -100)
+            ax.set_ylim(-600, -100)
         elif env == 'Acrobot':
-            ax.set_ylim(-200, -50)
+            ax.set_ylim(-250, -100)
         elif env == 'Cartpole':
             ax.set_ylim(200, 500)
         ax.set_title(env)
