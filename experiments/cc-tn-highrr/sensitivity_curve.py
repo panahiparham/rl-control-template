@@ -13,36 +13,23 @@ import rlevaluation.hypers as Hypers
 from rlevaluation.statistics import Statistic
 from rlevaluation.temporal import TimeSummary, extract_learning_curves, curve_percentile_bootstrap_ci
 from rlevaluation.config import data_definition
-from rlevaluation.interpolation import compute_step_return
 
 setDefaultConference('jmlr')
 
 COLORS = {
-    'dqn': {
-        1: 'tab:green',
-        128: 'tab:blue',
-    },
-    'ln-dqn': {
-        1: 'tab:purple',
-        128: 'tab:red',
-    },
+    'dqn': 'tab:blue',
+    'ln-dqn': 'tab:red',
 }
 
 LABELS = {
-    'dqn': {
-        1: 'DQN w.o. TN',
-        128: 'DQN',
-    },
-    'ln-dqn': {
-        1: 'LayerNorm DQN w.o. TN',
-        128: 'LayerNorm DQN',
-    },
+    'dqn': 'DQN [MLP]',
+    'ln-dqn': 'DQN [Layer Norm + MLP]',
 }
 
 WORKING_ENVS = [
-    'Acrobot-highrr',
-    'Cartpole-highrr',
-    'MountainCar-highrr',
+    'Acrobot',
+    'Cartpole',
+    'MountainCar',
 ]
 
 if __name__ == "__main__":
@@ -61,6 +48,7 @@ if __name__ == "__main__":
     for env, sub_results in results.groupby_directory(level=2):
         if env not in WORKING_ENVS:
             continue
+
         fig, ax = plt.subplots(1, 1)
         for alg_result in sub_results:
             alg = alg_result.filename
@@ -69,58 +57,57 @@ if __name__ == "__main__":
             if df is None:
                 continue
 
-            for (tn,), sub_df in df.group_by('TARGET_NETWORK_FREQUENCY'):
-
-                if tn not in [1, 128]:
-                    continue
+            rets = {}
+            for (tn_refresh,), sub_df in df.group_by('TARGET_NETWORK_FREQUENCY'):
 
                 report = Hypers.select_best_hypers(
                     sub_df,
                     metric='return',
-                    prefer=Hypers.Preference.high,
+                    prefer=Hypers.Preference.low,
                     time_summary=TimeSummary.mean,
                     statistic=Statistic.mean,
                 )
 
                 exp = alg_result.exp
-                N_POINTS = 1000
-                step_size = exp.total_steps // N_POINTS
 
-                xs, ys = extract_learning_curves(
+                _, ys = extract_learning_curves(
                     sub_df,
                     hyper_vals=report.best_configuration,
                     metric='return',
-                    interpolation=lambda x, y: compute_step_return(x, y, exp.total_steps),
                 )
 
-                xs = np.asarray(xs)[:, ::step_size]
-                ys = np.asarray(ys)[:, ::step_size]
-                assert np.all(np.isclose(xs[0], xs))
+                rets[tn_refresh] = np.array([np.mean(y) for y in ys])
 
-                res = curve_percentile_bootstrap_ci(
-                    rng=np.random.default_rng(0),
-                    y=ys,
-                    statistic=Statistic.mean,
-                    iterations=500,
-                )
+            # Draw sensitivity curve for target network refresh frequency
+            x = np.array(list(rets.keys()))
+            ys = np.array([v[:] for v in rets.values()]).T # use all seeds!
+            order = np.argsort(x)
+            x = x[order]
+            ys = ys[:, order]
 
-                ax.plot(xs[0], res.sample_stat, label=LABELS[alg][tn], color=COLORS[alg][tn], linewidth=1.5)
-                ax.fill_between(xs[0], res.ci[0], res.ci[1], color=COLORS[alg][tn], alpha=0.2)
+            for y in ys:
+                ax.plot(x, y, color=COLORS[alg], alpha=0.2, linewidth=0.4)
+
+            res = curve_percentile_bootstrap_ci(
+                rng=np.random.default_rng(0),
+                y=ys,
+                statistic=Statistic.mean,
+                iterations=500,
+            )
+
+
+            ax.plot(x, res.sample_stat, label=LABELS[alg], color=COLORS[alg], linewidth=1.5)
+            ax.fill_between(x, res.ci[0], res.ci[1], color=COLORS[alg], alpha=0.3)
 
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
-        ax.set_xlabel('Timesteps')
-        ax.set_ylabel('Return')
-
-        if env == 'MountainCar':
-            ax.set_ylim(-400, -100)
-        elif env == 'Acrobot':
-            ax.set_ylim(-200, -50)
-        elif env == 'Cartpole':
-            ax.set_ylim(200, 500)
+        ax.set_xlabel('Target Network Refresh Frequency')
+        ax.set_xscale('log')
+        ax.set_xticks(x)
+        ax.set_xticklabels(x)
+        ax.set_ylabel('Average Lifetime \n Return')
         ax.set_title(env)
-        ax.legend(loc = 'lower right')
 
         path = os.path.sep.join(os.path.relpath(__file__).split(os.path.sep)[:-1])
         save(
