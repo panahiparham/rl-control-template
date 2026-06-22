@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
             # Draw sensitivity curve for target network refresh frequency
             x = np.array(list(rets.keys()))
-            ys = np.array([x[:] for x in rets.values()]).T # use all seeds!
+            ys = np.array([v[:] for v in rets.values()]).T # use all seeds!
             order = np.argsort(x)
             x = x[order]
             ys = ys[:, order]
