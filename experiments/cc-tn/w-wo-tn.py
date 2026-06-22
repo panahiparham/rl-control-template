@@ -39,6 +39,12 @@ LABELS = {
     },
 }
 
+WORKING_ENVS = [
+    'Acrobot',
+    'Cartpole',
+    'MountainCar',
+]
+
 if __name__ == "__main__":
     path, should_save, save_type = parseCmdLineArgs()
 
@@ -53,6 +59,8 @@ if __name__ == "__main__":
     )
 
     for env, sub_results in results.groupby_directory(level=2):
+        if env not in WORKING_ENVS:
+            continue
         fig, ax = plt.subplots(1, 1)
         for alg_result in sub_results:
             alg = alg_result.filename

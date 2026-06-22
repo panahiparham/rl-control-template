@@ -1,0 +1,20 @@
+{
+    "AGENT": "DQN",
+    "ENVIRONMENT": "MountainCar-v0",
+    "TOTAL_TIMESTEPS": 100000,
+    "EPISODE_CUTOFF": 1000,
+    "vmapParameters": {
+        "LR": 0.001,
+        "LEARNING_STARTS": 1000,
+        "TRAIN_FREQUENCY": 0.25,
+        "TARGET_NETWORK_FREQUENCY": [1, 8, 32, 64, 128, 512, 1024, 4096],
+        "GAMMA": 0.99,
+        "EPSILON_START": 0.1,
+        "EPSILON_END": 0.1
+    },
+    "staticParameters": {
+        "BUFFER_SIZE": 10000,
+        "BATCH_SIZE": 64,
+        "NETWORK_PRESET": "ln-mlp"
+    }
+}
