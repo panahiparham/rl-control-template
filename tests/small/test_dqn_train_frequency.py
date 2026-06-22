@@ -18,9 +18,10 @@ def _run(train_frequency: float) -> int:
         LEARNING_STARTS=_STARTS,
         BATCH_SIZE=4,
         BUFFER_SIZE=200,
+        TRAIN_FREQUENCY=train_frequency,
     )
     train_fn = make_train(config, env, env_params)
-    output = train_fn(jax.random.PRNGKey(0), {"TRAIN_FREQUENCY": train_frequency})
+    output = train_fn(jax.random.PRNGKey(0), None)
     return int(output["runner_state"].train_state.step)
 
 

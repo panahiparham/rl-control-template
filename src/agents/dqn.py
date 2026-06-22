@@ -169,13 +169,15 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
         buffer_size = hypers.get('BUFFER_SIZE', config.BUFFER_SIZE)
         batch_size = hypers.get('BATCH_SIZE', config.BATCH_SIZE)
         learning_starts = hypers.get('LEARNING_STARTS', config.LEARNING_STARTS)
-        train_frequency = hypers.get('TRAIN_FREQUENCY', config.TRAIN_FREQUENCY)
-        if train_frequency >= 1.0:
-            _step_period = int(round(train_frequency))
+        # TRAIN_FREQUENCY is structural (controls fori_loop iterations) so it must
+        # be a static Python int — always read from config, never from traced hypers.
+        _tf = float(config.TRAIN_FREQUENCY)
+        if _tf >= 1.0:
+            _step_period = int(round(_tf))
             _updates_per_step = 1
         else:
             _step_period = 1
-            _updates_per_step = int(round(1.0 / train_frequency))
+            _updates_per_step = int(round(1.0 / _tf))
         target_network_frequency = hypers.get('TARGET_NETWORK_FREQUENCY', config.TARGET_NETWORK_FREQUENCY)
         gamma = hypers.get('GAMMA', config.GAMMA)
         tau = hypers.get('TAU', config.TAU)
