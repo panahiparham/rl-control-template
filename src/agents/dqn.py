@@ -21,7 +21,7 @@ class DQNConfig:
     BATCH_SIZE: int = 64
     TOTAL_TIMESTEPS: int = 200_000
     LEARNING_STARTS: int = 1_000
-    TRAIN_FREQUENCY: int = 1
+    TRAIN_FREQUENCY: float = 1.0
     TARGET_NETWORK_FREQUENCY: int = 1_000
     GAMMA: float = 0.99
     TAU: float = 1.0  # Soft update
@@ -170,6 +170,12 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
         batch_size = hypers.get('BATCH_SIZE', config.BATCH_SIZE)
         learning_starts = hypers.get('LEARNING_STARTS', config.LEARNING_STARTS)
         train_frequency = hypers.get('TRAIN_FREQUENCY', config.TRAIN_FREQUENCY)
+        if train_frequency >= 1.0:
+            _step_period = int(round(train_frequency))
+            _updates_per_step = 1
+        else:
+            _step_period = 1
+            _updates_per_step = int(round(1.0 / train_frequency))
         target_network_frequency = hypers.get('TARGET_NETWORK_FREQUENCY', config.TARGET_NETWORK_FREQUENCY)
         gamma = hypers.get('GAMMA', config.GAMMA)
         tau = hypers.get('TAU', config.TAU)
@@ -277,11 +283,21 @@ def make_train(config: DQNConfig, env: GymEnv[DiscreteActionSpace], env_params: 
                 train_state = train_state.apply_gradients(grads=grads)
                 return train_state, loss
 
-            can_train = (t > learning_starts) & (t % train_frequency == 0)
+            can_train = (t > learning_starts) & (t % _step_period == 0)
+
+            def _do_multi_train(train_state: TrainState, target_params: VariableDict, buffer_state: ReplayBufferState, rng: jax.Array) -> tuple[TrainState, jax.Array]:
+                def body(_, carry: tuple[TrainState, jax.Array, jax.Array]) -> tuple[TrainState, jax.Array, jax.Array]:
+                    ts, loss, key = carry
+                    key, step_key = jax.random.split(key)
+                    ts, loss = _do_train(ts, target_params, buffer_state, step_key)
+                    return ts, loss, key
+                ts, loss, _ = jax.lax.fori_loop(0, _updates_per_step, body, (train_state, 0.0, rng))
+                return ts, loss
+
             train_state, loss = jax.lax.cond(
                 can_train,
-                lambda: _do_train(train_state, target_params, buffer_state, rng),
-                lambda: (train_state, 0.0),
+                lambda: _do_multi_train(train_state, target_params, buffer_state, rng),
+                lambda: (train_state, jnp.zeros(())),
             )
 
             # UPDATE TARGET
