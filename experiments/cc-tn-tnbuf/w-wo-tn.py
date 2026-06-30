@@ -26,6 +26,10 @@ COLORS = {
         1: 'tab:purple',
         128: 'tab:red',
     },
+    'ln-noaff-dqn': {
+        1: 'tab:orange',
+        128: 'tab:pink',
+    },
 }
 
 LABELS = {
@@ -37,6 +41,10 @@ LABELS = {
         1: 'LayerNorm DQN w.o. TN',
         128: 'LayerNorm DQN',
     },
+    'ln-noaff-dqn': {
+        1: 'No param LayerNorm DQN w.o. TN',
+        128: 'No param LayerNorm DQN',
+    }
 }
 
 WORKING_ENVS = [
