@@ -19,11 +19,13 @@ setDefaultConference('jmlr')
 COLORS = {
     'dqn': 'tab:blue',
     'ln-dqn': 'tab:red',
+    'ln-noaff-dqn': 'tab:purple',
 }
 
 LABELS = {
     'dqn': 'DQN [MLP]',
     'ln-dqn': 'DQN [Layer Norm + MLP]',
+    'ln-noaff-dqn': 'DQN [Layer Norm without params]',
 }
 
 WORKING_ENVS = [
