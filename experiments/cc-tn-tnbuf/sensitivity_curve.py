@@ -19,7 +19,7 @@ setDefaultConference('jmlr')
 COLORS = {
     'dqn': 'tab:blue',
     'ln-dqn': 'tab:red',
-    'ln-noaff-dqn': 'tab:purple',
+    'ln-noaff-dqn': 'tab:green',
 }
 
 LABELS = {
@@ -104,12 +104,12 @@ if __name__ == "__main__":
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
-        ax.set_xlabel('Target Network Refresh Frequency')
-        ax.set_xscale('log')
+        ax.set_xlabel('Target Network Refresh Interval')
+        ax.set_xscale('log', base=2)
         ax.set_xticks(x)
         ax.set_xticklabels(x)
         ax.set_ylabel('Average Lifetime \n Return')
-        ax.legend(loc='upper right')
+        ax.legend(loc='lower left', frameon=False, fontsize=8)
         ax.set_title(env)
 
         path = os.path.sep.join(os.path.relpath(__file__).split(os.path.sep)[:-1])
