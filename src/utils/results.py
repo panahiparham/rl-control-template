@@ -1,13 +1,42 @@
 from collections.abc import Callable, Iterable, Sequence
+from functools import reduce
 import importlib
 import sqlite3
 from pathlib import Path
 from PyExpUtils.models.ExperimentDescription import ExperimentDescription, loadExperiment
 from PyExpUtils.results.tools import getHeader, getParamsAsDict
 from PyExpUtils.results.indices import listIndices
-from ml_instrumentation.reader import load_all_results, get_run_ids  # get_run_ids used in detect_missing_indices
+from ml_instrumentation.reader import get_run_ids  # used in detect_missing_indices
 
+import connectorx as cx
 import polars as pl
+
+
+def load_all_results_fast(db_path: str | Path, metrics: Sequence[str] | None = None) -> pl.DataFrame | None:
+    """Same output as ml_instrumentation.reader.load_all_results, but reads each
+    table with a single query. The upstream reader partitions SQLite reads into
+    1000 range queries on an unindexed column, causing ~1000 full table scans per DB."""
+    con = sqlite3.connect(db_path)
+    tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    con.close()
+
+    if metrics is None:
+        metrics = sorted(tables - {'_metadata_'})
+
+    uri = f'sqlite://{db_path}'
+    dfs = [
+        cx.read_sql(uri, f'SELECT * FROM [{m}]', return_type='polars')
+          .lazy().rename({'measurement': m})
+        for m in metrics
+    ]
+    df = reduce(lambda a, b: a.join(b, how='full', on=['id', 'frame'], coalesce=True), dfs)
+    df = df.sort('frame')
+
+    if '_metadata_' in tables:
+        meta = cx.read_sql(uri, 'SELECT * FROM _metadata_', return_type='polars').lazy()
+        df = df.join(meta, how='left', on=['id'])
+
+    return df.collect()
 
 class Result[Exp: ExperimentDescription]:
     def __init__(self, exp_path: str | Path, exp: Exp, metrics: Sequence[str] | None = None):
@@ -21,7 +50,7 @@ class Result[Exp: ExperimentDescription]:
         if not Path(db_path).exists():
             return None
 
-        df = load_all_results(db_path, self.metrics)
+        df = load_all_results_fast(db_path, self.metrics)
         if df is None or df.is_empty():
             return df
 
