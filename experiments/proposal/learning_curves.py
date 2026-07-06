@@ -30,6 +30,12 @@ LABELS = {
     'proposal': 'Proposal Agent',
 }
 
+WORKING_ALGS = [
+    'dqn',
+    # 'dqn-ln-noaff-notn',
+    'proposal',
+]
+
 WORKING_ENVS = [
     'Acrobot',
     'Cartpole',
@@ -55,6 +61,9 @@ if __name__ == "__main__":
         fig, ax = plt.subplots(1, 1)
         for alg_result in sub_results:
             alg = alg_result.filename
+
+            if alg not in WORKING_ALGS:
+                continue
 
             df = alg_result.load()
             if df is None:
@@ -90,7 +99,7 @@ if __name__ == "__main__":
                 iterations=500,
             )
 
-            ax.plot(xs[0], res.sample_stat, label=LABELS[alg], color=COLORS[alg], linewidth=1.5)
+            ax.plot(xs[0], res.sample_stat, label=LABELS[alg], color=COLORS[alg], linewidth=1.5, alpha = 1.0)
             ax.fill_between(xs[0], res.ci[0], res.ci[1], color=COLORS[alg], alpha=0.2)
 
         ax.spines['top'].set_visible(False)
@@ -99,12 +108,13 @@ if __name__ == "__main__":
         ax.set_xlabel('Timesteps')
         ax.set_ylabel('Return')
 
-        # if env == 'MountainCar':
-        #     ax.set_ylim(-400, -100)
-        # elif env == 'Acrobot':
-        #     ax.set_ylim(-200, -50)
-        # elif env == 'Cartpole':
-        #     ax.set_ylim(200, 500)
+        if env == 'MountainCar':
+            ...
+        elif env == 'Acrobot':
+            ...
+        elif env == 'Cartpole':
+            ...
+
         ax.set_title(env)
         ax.legend(loc = 'lower right')
 
