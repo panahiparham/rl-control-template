@@ -1,0 +1,19 @@
+{
+    "AGENT": "Proposal",
+    "ENVIRONMENT": "CartPole-v1",
+    "TOTAL_TIMESTEPS": 100000,
+    "EPISODE_CUTOFF": 500,
+    "vmapParameters": {
+        "LR": 0.001,
+        "LEARNING_STARTS": 1000,
+        "TRAIN_FREQUENCY": 1,
+        "GAMMA": 0.99,
+        "EPSILON_START": 0.1,
+        "EPSILON_END": 0.1
+    },
+    "staticParameters": {
+        "BUFFER_SIZE": 10000,
+        "BATCH_SIZE": 64,
+        "NETWORK_PRESET": "ln-mlp-no-affine"
+    }
+}
